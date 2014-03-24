@@ -14,6 +14,7 @@ import MySQLdb
 from all import rths_sites, rths_sensors
 import datetime
 import math
+import pickle
 
 class DatawriterCSV:
     """ provide methods for Dataparser to call to write data into a set of streams. """
@@ -153,7 +154,16 @@ class Dataparser:
         self.minuteperiod = None
 
     def parse_first_fn(self, fn):
-        """ remember things taken from the first filename """
+        """ remember things taken from the first filename
+        >>> data.parse_first_fn("/home/r5/log-MBIRDS-3-2011120423.gz")
+        >>> data.model
+        'MBIRDS'
+        >>> data.serial
+        '3'
+        >>> data.YMDH
+        '2011120423'
+        >>> 
+        """
         # log-MBIRDS-3-2011120423.gz
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
@@ -162,6 +172,12 @@ class Dataparser:
         self.YMDH = fnfields[3] # YYYYMMDDHH
 
     def parse_fn(self, fn):
+        """ pull the year, month, and day out of the filename
+        >>> data.parse_fn("/home/r5/log-MBIRDS-3-2011120423.gz")
+        >>> data.YMD
+        '20111204'
+        >>> 
+        """
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
         self.YMD = fnfields[3][:8] # YYYYMMDD
@@ -173,10 +189,79 @@ class Dataparser:
     dst2013end = datetime.datetime(2013, 11, 3, 2)
 
     def set_dt_fields(self, fields):
-        """ remember the full UTC datetime for each line, and return the data fields. """
-        # the data files were recorded in Eastern time, complete with DST crap.
-        # each line is of the form: 10:06:19 4.59,999.00,257
-        # we get it pre-split into two fields at the space.
+        """ remember the full UTC datetime for each line, and return the data fields.
+        the data files were recorded in Eastern time, complete with DST crap.
+        each line is of the form: 10:06:19 4.59,999.00,257
+        we get it pre-split into two fields at the space.
+
+        >>> # ---------------------------------------------------------------
+        >>> fn = "/home/s11/log-MBIRDS-3-2011120423.gz"
+        >>> data.utc = False
+        >>> data.parse_fn(fn)
+        >>> data.set_dt_fields("23:00:00 5.29,999.00,262".split())
+        ['5.29', '999.00', '262']
+        >>> data.dt
+        datetime.datetime(2011, 12, 5, 3, 0)
+        >>> data.set_dt_fields("23:00:37 5.29,999.00,262".split())
+        ['5.29', '999.00', '262']
+        >>> data.dt
+        datetime.datetime(2011, 12, 5, 3, 0, 37)
+        >>> # ---------------------------------------------------------------
+        >>> # check the transition from daylight savings to standard (fall back)
+        >>> fn = "/home/s21/log-windair-12-2012110400.gz"
+        >>> data.utc = False
+        >>> data.parse_fn(fn)
+        >>> data.set_dt_fields("00:00:00 0.00,0.00,19.69,33.13".split())
+        ['0.00', '0.00', '19.69', '33.13']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 4, 0)
+        >>> data.set_dt_fields("00:59:58 0.00,0.00,19.71,33.02".split())
+        ['0.00', '0.00', '19.71', '33.02']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 4, 59, 58)
+        >>> fn = "/home/s21/log-windair-12-2012110401.gz"
+        >>> data.parse_fn(fn)
+        >>> data.set_dt_fields("01:00:00 0.00,0.00,19.72,33.01".split())
+        ['0.00', '0.00', '19.72', '33.01']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 5, 0)
+        >>> data.set_dt_fields("01:59:58 0.00,0.00,19.66,33.01".split())
+        ['0.00', '0.00', '19.66', '33.01']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 5, 59, 58)
+        >>> data.set_dt_fields("01:00:00 0.00,0.00,19.67,32.98".split())
+        ['0.00', '0.00', '19.67', '32.98']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 6, 0)
+        >>> data.set_dt_fields("00:59:58 0.00,0.00,19.71,33.02".split())
+        ['0.00', '0.00', '19.71', '33.02']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 4, 59, 58)
+        >>> data.set_dt_fields("01:59:58 0.00,0.00,19.71,33.02".split())
+        ['0.00', '0.00', '19.71', '33.02']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 6, 59, 58)
+        >>> 
+        >>> # ---------------------------------------------------------------
+        >>> # check the transition from standard to daylight savings (spring ahead)
+        >>> fn = "/home/s3/done-2013-10-14/log-windair-11-2013031001.gz"
+        >>> data.utc = False
+        >>> data.parse_fn(fn)
+        >>> data.set_dt_fields("01:00:00 0.00,0.00,-4.87,91.12".split())
+        ['0.00', '0.00', '-4.87', '91.12']
+        >>> data.dt
+        datetime.datetime(2013, 3, 10, 6, 0)
+        >>> data.set_dt_fields("01:59:58 0.00,0.00,-5.67,91.76".split())
+        ['0.00', '0.00', '-5.67', '91.76']
+        >>> data.dt
+        datetime.datetime(2013, 3, 10, 6, 59, 58)
+        >>> data.set_dt_fields("03:00:00 0.00,0.00,-5.66,91.76".split())
+        ['0.00', '0.00', '-5.66', '91.76']
+        >>> data.dt
+        datetime.datetime(2013, 3, 10, 7, 0)
+        >>> 
+
+        """
         self.dt = datetime.datetime(*time.strptime(self.YMD+fields[0], "%Y%m%d%H:%M:%S")[:6])
         if self.utc:
             tzoffset = 0; # wasn't that easy?
@@ -198,11 +283,22 @@ class Dataparser:
         return fields[1].split(',')
 
     def date_parse(self, dstr):
+        """ take a MM/DD/YYYY date and turn it into a datetime.date
+        >>> data.date_parse("10/20/2013")
+        datetime.date(2013, 10, 20)
+        >>> 
+        """
         fields = dstr.split("/")
         return datetime.date(int(fields[2]), int(fields[0]), int(fields[1]))
 
     def get_calibration(self, model, serial, date):
-        """ find the right calibration value. Crap out if not found. """
+        """ find the right calibration value. Crap out if not found.
+        >>> data.get_calibration("pH", "0", datetime.date(2013, 7, 31))
+        ['ph', '0', 'for St. Regis', '', '5/20/2013', '-0.8766', '31.99', '', '', '', '', '', '', '']
+        >>> data.get_calibration("pH", "0", datetime.date(2013, 8, 31))
+        ['ph', '0', 'Grasse', '', '8/15/2013', '-1.0634', '37.28', '', '', '', '', '', '', '']
+        >>> 
+        """
         model = model.lower()
         for line in self.rthssi:
             if line[0] == model and line[1] == serial:
@@ -534,7 +630,67 @@ class Dataph(Dataparser):
             fieldsums[0][1] = calibration[0] * fieldsums[0][1] + calibration[1]
             fieldsums[0][0] = 1
 
+class History:
+    """a data structure for ppal history.
+>>> fn = "/tmp/junkfile"
+>>> if os.path.exists(fn):
+...     os.unlink(fn)
+>>> h = History("ppal-1", datetime.datetime.now(), fn=fn)
+>>> h.previous
+>>> h.dt
+>>> h.raining
+False
+>>> h.previous = 27
+>>> h.dt = datetime.datetime.now()
+>>> h._history
+{}
+>>> h.dump()
+>>> h = History("ppal-1", datetime.datetime.now(), fn=fn)
+>>> h.previous
+27
+>>> h.raining
+False
+>>> len(h._history)
+1
+>>> h = History("ppal-1", datetime.datetime.now() + datetime.timedelta(hours=1, minutes=1), fn=fn)
+>>> h.previous
+>>>  """
+    def __init__(self, modelserial, dt, fn="ppalhistory.pickle"):
+        """ set up our data """
+        self._modelserial = modelserial
+        self._fn = fn
+        if self.load() and self.dt + datetime.timedelta(hours = 1, minutes=1) >= dt:
+            pass
+        else:
+            #if 'dt' in self.__dict__:
+            #    print "skipping because",self.dt, dt
+            self.raining = False
+            self.previous = None
+            self.dt = None # value never referenced if previous is None
+
+    def load(self):
+        """ load the history file and return true, or set the history empty and return false """
+        if os.path.exists(self._fn):
+            self._history = pickle.load(open(self._fn))
+            if self._modelserial in self._history:
+                (self.raining, self.previous, self.dt) = self._history[self._modelserial]
+                return True
+        else:
+            self._history = {}
+        return False
+
+    def dump(self):
+        """ if we have a history file, write it out with our new values."""
+        if self._history is not None:
+            self._history[self._modelserial] = (self.raining, self.previous, self.dt)
+            pickle.dump(self._history, open(self._fn, "w") )
+
 class Datappal(Dataparser):
+    """ We analyze a set of samples looking for an increase from the previous level. If it's large enough,
+    we conclude that it's raining. As long as that keeps going up, we keep counting it as rain. Once it
+    decreases, we conclude that the rain has stopped, and we start looking for an increase in the level again.
+    Making life interesting is that we need to keep a history of the state from run to run. If there is too
+    long a gap from the previous history, we discard it and start over again."""
 
     threshold = 0.00975
     threshold = 0.0087 # rain period starts with a delta at least this big.
@@ -543,11 +699,14 @@ class Datappal(Dataparser):
     def __init__(self, rthssi):
         Dataparser.__init__(self, rthssi)
         self.minuteperiod = None
-        self.raining = False ### how to carry this over from analysis period to analysis period??
-        self.previous = None
+        self.h = None
         self.calibrations = {}
         for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5]
+
+    def dofiles(self, files, writer):
+        Dataparser.dofiles(self, files, writer)
+        self.h.dump()
 
     def doneaveraging(self):
         """ average one hour worth of samples. """
@@ -560,23 +719,28 @@ class Datappal(Dataparser):
         return done
 
     def normalize_fieldsums(self, fieldsums):
+        print "normalizing",fieldsums
+        if self.h is None:
+            self.h = History(self.model + "-" + self.serial, self.dt)
         if fieldsums[0][0] == 0: return
         # only output deltas if the start of deltas exceeded threshold
         cal = float(self.calibrations[self.model + '-' + self.serial])
         ave = float(fieldsums[0][1]) / fieldsums[0][0]
         this = ave  / cal
-        if self.previous is None: # remember the first (but we should be carrying over from previous)
-            self.previous = this
+        if self.h.previous is None: # remember the first (but we should be carrying over from previous)
+            self.h.previous = this
+            self.h.dt = self.dt
             fieldsums[0][0] = 0
             return
-        delta = this - self.previous
-        self.previous = this
+        delta = this - self.h.previous
+        self.h.previous = this
+        self.h.dt = self.dt
         if delta > self.threshold:
-            self.raining = True
-        if self.raining and delta > 0:
+            self.h.raining = True
+        if self.h.raining and delta > 0:
             fieldsums[0][1] = delta * 2.54 # convert inches to cm
         else:
-            self.raining = False
+            self.h.raining = False
             fieldsums[0][1] = 0
         fieldsums[0][0] = 1
 
@@ -655,10 +819,8 @@ if __name__ == "__main__":
 
     opts, args = getopt.getopt(sys.argv[1:], "tpsu")
     if ("-t","") in opts:
-        doctest.testmod()
         data = Dataparser(rthssi)
-        print data.get_calibration("pH", "0", datetime.date(2013, 7, 31))
-        print data.get_calibration("pH", "0", datetime.date(2013, 8, 31))
+        doctest.testmod()
         sys.exit()
 
     # sort the list of filenames by date
@@ -711,10 +873,10 @@ if __name__ == "__main__":
         writer.close()
         # rename the files here.
         for fn in filelist:
+            if fn.find("/done"): continue # already done, must be recapitulating
             fn = fn.rstrip()
             fnfields = os.path.split(fn)
             fnnew = os.path.join( fnfields[0], "done", fnfields[1])
             os.rename(fn, fnnew)
 
 # EOF
-
