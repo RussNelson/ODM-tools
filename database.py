@@ -58,92 +58,90 @@ class DatawriterSQL(DatawriterCSV):
     def __init__(self, sitecode):
         DatawriterCSV.__init__(self)
         # using: ssh -n -N  -L 3307:localhost:3306 -i /root/.ssh/id_dsa mysqlfwd@www.ra-tes.org
-        self.con = MySQLdb.connect(host='127.0.0.1', user='odbinsert', passwd='bn8V9!rL', db='odm', port=3307)
+        self.con = MySQLdb.connect(host='127.0.0.1', user='root', passwd='drjim1979', db='odm', port=3306)
         self.cur = self.con.cursor()
         self.sitecode = sitecode
         self.fieldcolumns = None
         self.SiteID = {}
         self.VariableID = {}
-        self.MethodID = None
+        self.MethodID = {}
 
     def open(self, fields, model, serial, ymdh):
         self.fieldcolumns = []
         for fieldnum,field in enumerate(fields):
-            variable = field[1] # rths_sensors
-            self.fieldcolumns.append([self.sitecode, variable, 0, None])
+            variablecode = field[1] # rths_sensors
+            methoddescription = field[4] # rths_sensors
+            if methoddescription == '': methoddescription = 'Autonomous Sensing'
+            self.fieldcolumns.append([self.sitecode, variablecode, methoddescription, 0, None])
 
     def write(self, dt, fieldsums):
         for i,fieldcolumn in enumerate(self.fieldcolumns):
-            site, variable = fieldcolumn[0:2]
-            if variable and fieldsums[i][0]:
-                self.insert(site, variable, dt, fieldsums[i][1] / fieldsums[i][0])
-                fieldcolumn[2] += 1
-                fieldcolumn[3] = dt
+            sitecode, variablecode, methoddescription = fieldcolumn[0:3]
+            if variablecode and fieldsums[i][0]:
+                self.insert(sitecode, variablecode, methoddescription, dt, fieldsums[i][1] / fieldsums[i][0])
+                fieldcolumn[3] += 1
+                fieldcolumn[4] = dt
 
     def close(self):
         if self.fieldcolumns is None: return
         for i,fieldcolumn in enumerate(self.fieldcolumns):
-            site, variable, count, dt = fieldcolumn
+            site, variable, method, count, dt = fieldcolumn
             if count:
-                print site,variable,dt,count
-                self.update(site, variable, dt, count)
+                print site,variable,method,dt,count
+                self.update(site, variable, method, dt, count)
         self.con.commit()
 
-    updatesql = """update seriescatalog
-        set EndDateTime = '%s', EndDateTimeUTC = '%s',
-            ValueCount = ValueCount + %s
-        where SiteCode = '%s' and VariableCode = '%s'
-        ; """.replace("\n", "")
-
-    def update(self, SiteCode, VariableCode, dt, count):
+    def update(self, SiteCode, VariableCode, MethodDescription, dt, count):
         UTCtime = dt.isoformat()
         tzoffset = -5 # DST can go to hell.
         dt += datetime.timedelta(hours=tzoffset)
         ESTtime = dt.isoformat()
-        sqlcmd = self.updatesql % (ESTtime, UTCtime,
-            count, SiteCode, VariableCode)
+        sqlcmd = """
+            UPDATE seriescatalog
+            SET EndDateTime = '%(ESTtime)s',
+                EndDateTimeUTC = '%(UTCtime)s',
+                ValueCount = ValueCount + %(count)s
+            WHERE SiteCode = '%(SiteCode)s'
+            AND VariableCode = '%(VariableCode)s'
+            AND MethodDescription = '%(MethodDescription)s'
+        ; """ % locals()
 
         return self.cur.execute(sqlcmd)
 
-    sqlfind = """
-        select sites.SiteID, variables.VariableID, methods.MethodID
-        from sites, variables, methods
-        where sites.SiteCode = '%s'
-        and variables.VariableCode = '%s'
-        and methods.MethodDescription = 'Autonomous Sensing'
-        ; """.replace("\n        "," ")
+    def get_site_variable(self, SiteCode, VariableCode, MethodDescription):
+        """ given a SiteCode and VariableCode, return a SiteID, VariableID, and MethodID """
 
-    def get_site_variable(self, SiteCode, VariableCode):
-        """ given a SiteCode and VariableCode, return a SiteID and VariableID"""
+        if SiteCode not in self.SiteID or VariableCode not in self.VariableID or MethodDescription not in self.MethodID:
+            sqlcmd = """
+                SELECT sites.SiteID, variables.VariableID, methods.MethodID
+                FROM sites, variables, methods
+                WHERE sites.SiteCode = '%(SiteCode)s'
+                AND variables.VariableCode = '%(VariableCode)s'
+                AND methods.MethodDescription = '%(MethodDescription)s'
+                ; """ % locals()
+            self.cur.execute(sqlcmd)
 
-        if SiteCode in self.SiteID and VariableCode in self.VariableID and self.MethodID is not None:
-            return (self.SiteID[SiteCode], self.VariableID[VariableCode])
-
-        sqlcmd = self.sqlfind % (SiteCode, VariableCode)
-        self.cur.execute(sqlcmd)
-
-        (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID) = self.cur.fetchone()
-        return (self.SiteID[SiteCode], self.VariableID[VariableCode])
+            (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription]) = self.cur.fetchone()
+        return (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription])
 
     
-    insertsql = """insert ignore into datavalues
-        (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,
-         DataValue,MethodID,SourceID,CensorCode)
-        values (%ld,'%s',%d,'%s',%ld,
-         %f,%ld,1,'nc')
-        ; """.replace("\n        ","")
+    def insert(self, SiteCode, VariableCode, MethodDescription, dt, value):
 
-    def insert(self, SiteCode, VariableCode, dt, value):
-
-        SiteID, VariableID = self.get_site_variable(SiteCode, VariableCode)
+        SiteID, VariableID, MethodID = self.get_site_variable(SiteCode, VariableCode, MethodDescription)
 
         UTCtime = dt.isoformat()
         tzoffset = -5 # DST can go to hell.
         dt += datetime.timedelta(hours=tzoffset)
         ESTtime = dt.isoformat()
         
-        sqlcmd = self.insertsql % (SiteID, ESTtime, tzoffset, UTCtime, VariableID, 
-            value, self.MethodID)
+        sqlcmd = """
+            INSERT IGNORE INTO datavalues
+            (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,
+             DataValue,MethodID,SourceID,CensorCode)
+            VALUES (%(SiteID)ld,'%(ESTtime)s',%(tzoffset)d,'%(UTCtime)s',%(VariableID)ld,
+             %(value)f,%(MethodID)ld,1,'nc')
+        ; """ % locals()
+
         return self.cur.execute(sqlcmd)
 
 class Dataparser:
@@ -285,11 +283,11 @@ class Dataparser:
     def date_parse(self, dstr):
         """ take a MM/DD/YYYY date and turn it into a datetime.date
         >>> data.date_parse("10/20/2013")
-        datetime.date(2013, 10, 20)
+        datetime.datetime(2013, 10, 20, 0, 0)
         >>> 
         """
         fields = dstr.split("/")
-        return datetime.date(int(fields[2]), int(fields[0]), int(fields[1]))
+        return datetime.datetime(int(fields[2]), int(fields[0]), int(fields[1]), 0, 0, 0)
 
     def get_calibration(self, model, serial, date):
         """ find the right calibration value. Crap out if not found.
@@ -719,7 +717,6 @@ class Datappal(Dataparser):
         return done
 
     def normalize_fieldsums(self, fieldsums):
-        print "normalizing",fieldsums
         if self.h is None:
             self.h = History(self.model + "-" + self.serial, self.dt)
         if fieldsums[0][0] == 0: return
@@ -749,6 +746,20 @@ class Datappal1(Datappal):
 
 class Datappal2(Datappal):
     """ same data format """
+
+class Dataoptode(Dataparser):
+    """19:54:07 342.18,95.81,9.42,28.68,29.52,0.00,266.87,168.00,0.00,341.65"""
+
+    def normalize_fieldsums(self, fieldsums):
+        """After the timestamp (which is generated by the RTHS logger service), the next three fields are as follows:
+
+        349.98 DO Concentration in micromolar
+        97.57 DO Saturation in %
+        9.24 Water Temperature in Celsius
+
+        To convert from micromolar to mg/L, multiply the micromolar value by 0.032."""
+        fieldsums[0][1] *= 0.032
+
 
 class Dataobs(Dataparser):
 
@@ -814,7 +825,7 @@ if __name__ == "__main__":
     import doctest
 
     rthssi = []
-    for line in csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv")):
+    for line in csv.reader(open("RTHS Sensor Inventory - Sheet1.csv")):
         rthssi.append(line)
 
     opts, args = getopt.getopt(sys.argv[1:], "tpsu")
@@ -873,7 +884,7 @@ if __name__ == "__main__":
         writer.close()
         # rename the files here.
         for fn in filelist:
-            if fn.find("/done"): continue # already done, must be recapitulating
+            if fn.find("/done") >= 0: continue # already done, must be recapitulating
             fn = fn.rstrip()
             fnfields = os.path.split(fn)
             fnnew = os.path.join( fnfields[0], "done", fnfields[1])
