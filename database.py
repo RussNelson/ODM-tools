@@ -23,6 +23,10 @@ class DatawriterCSV:
         pass
 
     def _makefn(self, fn, serial, ymdh):
+        """ Construct the destination filename
+        >>> writercsv._makefn("a", "b", "YYYYMMDD")
+        'a-b.csv'
+        """
         return fn + "-%s.csv" % serial
 
     def open(self, fields, model, serial, ymdh):
@@ -49,7 +53,12 @@ class DatawriterCSV:
 class DatawriterCSVone(DatawriterCSV):
     """ like CSV, but one for one hour's worth of data, and passes the date through to the name """
     def _makefn(self, fn, serial, ymdh):
-       return "rths/%s/%s/" % (ymdh[0:4], ymdh[0:6]) + fn + "-%s-%s.csv" % (serial, ymdh)
+        """ Construct the destination filename
+        >>> writercsvone._makefn("a", "b", "YYYYMMDD")
+        'rths/YYYY/YYYYMM/a-b-YYYYMMDD.csv'
+        >>> 
+        """
+        return "rths/%s/%s/" % (ymdh[0:4], ymdh[0:6]) + fn + "-%s-%s.csv" % (serial, ymdh)
 
 class DatawriterSQL(DatawriterCSV):
     """ provide methods for Dataparser to call to write data into a set of streams. """
@@ -65,20 +74,31 @@ class DatawriterSQL(DatawriterCSV):
         self.SiteID = {}
         self.VariableID = {}
         self.MethodID = {}
+        self.forcemethodname = None
+
+    def forcemethod(self, name):
+        self.forcemethodname = name
 
     def open(self, fields, model, serial, ymdh):
         self.fieldcolumns = []
         for fieldnum,field in enumerate(fields):
             variablecode = field[1] # rths_sensors
             methoddescription = field[4] # rths_sensors
-            if methoddescription == '': methoddescription = 'Autonomous Sensing'
+            if methoddescription == '':
+                if self.forcemethodname is None:
+                    methoddescription = 'Autonomous Sensing'
+                else:
+                    methoddescription = self.forcemethodname
+            else:
+                if self.forcemethodname is not None:
+                    methoddescription += " " + self.forcemethodname
             self.fieldcolumns.append([self.sitecode, variablecode, methoddescription, 0, None])
 
     def write(self, dt, fieldsums):
         for i,fieldcolumn in enumerate(self.fieldcolumns):
             sitecode, variablecode, methoddescription = fieldcolumn[0:3]
             if variablecode and fieldsums[i][0]:
-                self.insert(sitecode, variablecode, methoddescription, dt, fieldsums[i][1] / fieldsums[i][0])
+                self._insert(sitecode, variablecode, methoddescription, dt, fieldsums[i][1] / fieldsums[i][0])
                 fieldcolumn[3] += 1
                 fieldcolumn[4] = dt
 
@@ -88,10 +108,10 @@ class DatawriterSQL(DatawriterCSV):
             site, variable, method, count, dt = fieldcolumn
             if count:
                 print site,variable,method,dt,count
-                self.update(site, variable, method, dt, count)
+                self._update(site, variable, method, dt, count)
         self.con.commit()
 
-    def update(self, SiteCode, VariableCode, MethodDescription, dt, count):
+    def _update(self, SiteCode, VariableCode, MethodDescription, dt, count):
         UTCtime = dt.isoformat()
         tzoffset = -5 # DST can go to hell.
         dt += datetime.timedelta(hours=tzoffset)
@@ -108,7 +128,7 @@ class DatawriterSQL(DatawriterCSV):
 
         return self.cur.execute(sqlcmd)
 
-    def get_site_variable(self, SiteCode, VariableCode, MethodDescription):
+    def _get_site_variable(self, SiteCode, VariableCode, MethodDescription):
         """ given a SiteCode and VariableCode, return a SiteID, VariableID, and MethodID """
 
         if SiteCode not in self.SiteID or VariableCode not in self.VariableID or MethodDescription not in self.MethodID:
@@ -125,9 +145,9 @@ class DatawriterSQL(DatawriterCSV):
         return (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription])
 
     
-    def insert(self, SiteCode, VariableCode, MethodDescription, dt, value):
+    def _insert(self, SiteCode, VariableCode, MethodDescription, dt, value):
 
-        SiteID, VariableID, MethodID = self.get_site_variable(SiteCode, VariableCode, MethodDescription)
+        SiteID, VariableID, MethodID = self._get_site_variable(SiteCode, VariableCode, MethodDescription)
 
         UTCtime = dt.isoformat()
         tzoffset = -5 # DST can go to hell.
@@ -165,9 +185,13 @@ class Dataparser:
         # log-MBIRDS-3-2011120423.gz
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
-        self.model = fnfields[1]
-        self.serial = fnfields[2]
-        self.YMDH = fnfields[3] # YYYYMMDDHH
+        try:
+            self.model = fnfields[1]
+            self.serial = fnfields[2]
+            self.YMDH = fnfields[3] # YYYYMMDDHH
+        except IndexError: 
+            print fn
+            raise
 
     def parse_fn(self, fn):
         """ pull the year, month, and day out of the filename
@@ -185,6 +209,7 @@ class Dataparser:
     dst2012endnext = datetime.datetime(2012, 11, 4, 2)
     dst2013begin = datetime.datetime(2013, 3, 10, 2)
     dst2013end = datetime.datetime(2013, 11, 3, 2)
+    dst2014begin = datetime.datetime(2014, 3, 9, 2)
 
     def set_dt_fields(self, fields):
         """ remember the full UTC datetime for each line, and return the data fields.
@@ -275,8 +300,10 @@ class Dataparser:
             tzoffset = -5
         elif self.dt < self.dst2013end: # DST 2013
             tzoffset = -4
-        else: # ST 2013-2014
+        elif self.dt < self.dst2014begin: # ST 2013-2014
             tzoffset = -5
+        else: # DST 2014-2014
+            tzoffset = -4
         self.dt += datetime.timedelta(hours=-tzoffset)
         return fields[1].split(',')
 
@@ -291,9 +318,9 @@ class Dataparser:
 
     def get_calibration(self, model, serial, date):
         """ find the right calibration value. Crap out if not found.
-        >>> data.get_calibration("pH", "0", datetime.date(2013, 7, 31))
+        >>> data.get_calibration("pH", "0", datetime.datetime(2013, 7, 31, 0,0,0))
         ['ph', '0', 'for St. Regis', '', '5/20/2013', '-0.8766', '31.99', '', '', '', '', '', '', '']
-        >>> data.get_calibration("pH", "0", datetime.date(2013, 8, 31))
+        >>> data.get_calibration("pH", "0", datetime.datetime(2013, 8, 31, 0,0,0))
         ['ph', '0', 'Grasse', '', '8/15/2013', '-1.0634', '37.28', '', '', '', '', '', '', '']
         >>> 
         """
@@ -359,7 +386,7 @@ class Dataparser:
         for fn in files:
             try:
                 fn = fn.rstrip()
-                self.utc = fn.startswith("/home/r")
+                self.utc = fn.find("/r") >= 0
                 self.parse_fn(fn)
 
                 self.prepare_for(fn)
@@ -396,12 +423,20 @@ class Dataparser:
             open(fn, "w")
             os.utime(fn, (lastrx, lastrx))
 
+class Datadepth(Dataparser):
+    def normalize_fieldsums(self, fieldsums):
+        """ use centimeters """
+        fieldsums[0][1] *= 100.0
+        fieldsums[1][1] *= 100.0
+
 class Datadepth2(Dataparser):
     def normalize_fieldsums(self, fieldsums):
-        """ adjust calibration on the low-range sensor. """
+        """ use centimeters, and adjust calibration on the low-range sensor. """
         fieldsums[0][1] /= fieldsums[0][0]
         fieldsums[0][1]  = fieldsums[0][1] / 3 + 0.94
         fieldsums[0][0]  = 1
+        fieldsums[0][1] *= 100.0
+        fieldsums[1][1] *= 100.0
 
 class Datavoltage(Dataparser):
     """ read the battery voltage data. For historical reasons it's not in exactly the same file format. """
@@ -600,7 +635,7 @@ class Datacond(Dataparser):
                 if ((i == 0 and fieldsums[i][1] < 65535 * 0.90) or
                     (i == 1 and 65535/4 < fieldsums[i][1] < 65535 * 0.90) or
                     (i == 2)):
-                    fieldsums[0][1] = calibration[6 + i] * (66190.0 / fieldsums[i][1] - 1)
+                    fieldsums[0][1] = calibration[6 + i] * (65535.0 / fieldsums[i][1] - 1)
                     fieldsums[0][0] = 1
                     break
         else:
@@ -620,6 +655,15 @@ class Datafl3(Dataparser):
                 fieldsums[col][0] = 1
 
 class Dataph(Dataparser):
+    def normalize_fieldsums(self, fieldsums):
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = map(float, cline[5:7])
+        if fieldsums[0][0]:
+            fieldsums[0][1] /= fieldsums[0][0]
+            fieldsums[0][1] = calibration[0] * fieldsums[0][1] + calibration[1]
+            fieldsums[0][0] = 1
+
+class Datado3(Dataparser):
     def normalize_fieldsums(self, fieldsums):
         cline = self.get_calibration(self.model, self.serial, self.dt)
         calibration = map(float, cline[5:7])
@@ -735,7 +779,7 @@ class Datappal(Dataparser):
         if delta > self.threshold:
             self.h.raining = True
         if self.h.raining and delta > 0:
-            fieldsums[0][1] = delta * 2.54 # convert inches to cm
+            fieldsums[0][1] = delta * 25.4 # convert inches to mm
         else:
             self.h.raining = False
             fieldsums[0][1] = 0
@@ -820,6 +864,16 @@ class Dataobs(Dataparser):
         fields.append(blue)
         return fields
 
+def searchfor(fn, filename):
+    sitefn = os.path.join(os.path.dirname(fn), filename)
+    if os.path.exists(sitefn):
+        return open(sitefn).read().rstrip()
+    else:
+        sitefn = os.path.join(os.path.dirname(os.path.dirname(fn)), filename)
+        if os.path.exists(sitefn):
+            return open(sitefn).read().rstrip()
+    return None
+
 if __name__ == "__main__":
     import getopt
     import doctest
@@ -831,6 +885,8 @@ if __name__ == "__main__":
     opts, args = getopt.getopt(sys.argv[1:], "tpsu")
     if ("-t","") in opts:
         data = Dataparser(rthssi)
+        writercsv = DatawriterCSV()
+        writercsvone = DatawriterCSVone()
         doctest.testmod()
         sys.exit()
 
@@ -859,18 +915,17 @@ if __name__ == "__main__":
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
         if fnfields[0] == 'voltage':
+            modelserial = "%s-%s" % (fnfields[0], site)
             model = fnfields[0].lower() 
         else:
+            modelserial = "-".join(fnfields[1:3])
             model = fnfields[1].lower() 
-        sitefn = os.path.join(os.path.dirname(fn), ".sitecode")
-        if os.path.exists(sitefn):
-            sitecode= open(sitefn).read().rstrip()
-        else:
-            sitefn = os.path.join(os.path.dirname(os.path.dirname(fn)), ".sitecode")
-            sitecode= open(sitefn).read().rstrip()
 
         if ("-s","") in opts:
+            sitecode = searchfor(fn, ".sitecode")
             writer = DatawriterSQL(sitecode)
+            method = searchfor(fn, ".method-" + modelserial)
+            if method: writer.forcemethod(method)
         elif ("-p","") in opts:
             writer = DatawriterCSVone()
         else:
