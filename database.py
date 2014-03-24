@@ -61,6 +61,9 @@ class DatawriterSQL(DatawriterCSV):
         self.cur = self.con.cursor()
         self.sitecode = sitecode
         self.fieldcolumns = None
+        self.SiteID = {}
+        self.VariableID = {}
+        self.MethodID = None
 
     def open(self, fields, model, serial, ymdh):
         self.fieldcolumns = []
@@ -71,7 +74,7 @@ class DatawriterSQL(DatawriterCSV):
     def write(self, dt, fieldsums):
         for i,fieldcolumn in enumerate(self.fieldcolumns):
             site, variable = fieldcolumn[0:2]
-            if fieldsums[i][0]:
+            if variable and fieldsums[i][0]:
                 self.insert(site, variable, dt, fieldsums[i][1] / fieldsums[i][0])
                 fieldcolumn[2] += 1
                 fieldcolumn[3] = dt
@@ -81,7 +84,8 @@ class DatawriterSQL(DatawriterCSV):
         for i,fieldcolumn in enumerate(self.fieldcolumns):
             site, variable, count, dt = fieldcolumn
             if count:
-                print site,variable,dt,count,self.update(site, variable, dt, count)
+                print site,variable,dt,count
+                self.update(site, variable, dt, count)
         self.con.commit()
 
     updatesql = """update seriescatalog
@@ -98,30 +102,48 @@ class DatawriterSQL(DatawriterCSV):
         sqlcmd = self.updatesql % (ESTtime, UTCtime,
             count, SiteCode, VariableCode)
 
-        print sqlcmd
         return self.cur.execute(sqlcmd)
+
+    sqlfind = """
+        select sites.SiteID, variables.VariableID, methods.MethodID
+        from sites, variables, methods
+        where sites.SiteCode = '%s'
+        and variables.VariableCode = '%s'
+        and methods.MethodDescription = 'Autonomous Sensing'
+        ; """.replace("\n        "," ")
+
+    def get_site_variable(self, SiteCode, VariableCode):
+        """ given a SiteCode and VariableCode, return a SiteID and VariableID"""
+
+        if SiteCode in self.SiteID and VariableCode in self.VariableID and self.MethodID is not None:
+            return (self.SiteID[SiteCode], self.VariableID[VariableCode])
+
+        sqlcmd = self.sqlfind % (SiteCode, VariableCode)
+        self.cur.execute(sqlcmd)
+
+        (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID) = self.cur.fetchone()
+        return (self.SiteID[SiteCode], self.VariableID[VariableCode])
+
     
-    insertsql = """insert into datavalues
+    insertsql = """insert ignore into datavalues
         (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,
          DataValue,MethodID,SourceID,CensorCode)
-        ( select sites.SiteID,'%s',%d,'%s',variables.VariableID,
-         '%s',methods.MethodID,1,'nc' 
-        from sites, variables, methods 
-        where sites.SiteCode = '%s'
-          and variables.VariableCode = '%s'
-          and methods.MethodDescription = 'Autonomous Sensing')
-        ; """.replace("\n","")
+        values (%ld,'%s',%d,'%s',%ld,
+         %f,%ld,1,'nc')
+        ; """.replace("\n        ","")
 
     def insert(self, SiteCode, VariableCode, dt, value):
+
+        SiteID, VariableID = self.get_site_variable(SiteCode, VariableCode)
+
         UTCtime = dt.isoformat()
         tzoffset = -5 # DST can go to hell.
         dt += datetime.timedelta(hours=tzoffset)
         ESTtime = dt.isoformat()
-        sqlcmd =  self.insertsql % (ESTtime, tzoffset, UTCtime,
-            value, SiteCode, VariableCode)
-
+        
+        sqlcmd = self.insertsql % (SiteID, ESTtime, tzoffset, UTCtime, VariableID, 
+            value, self.MethodID)
         return self.cur.execute(sqlcmd)
-
 
 class Dataparser:
 
@@ -156,7 +178,9 @@ class Dataparser:
         # each line is of the form: 10:06:19 4.59,999.00,257
         # we get it pre-split into two fields at the space.
         self.dt = datetime.datetime(*time.strptime(self.YMD+fields[0], "%Y%m%d%H:%M:%S")[:6])
-        if self.dt < self.dst2012end: # DST 2012
+        if self.utc:
+            tzoffset = 0; # wasn't that easy?
+        elif self.dt < self.dst2012end: # DST 2012
             tzoffset = -4
         elif self.dt < self.dst2012endnext: # the last hour of DST 2012
             if self.dst is None or self.dt > self.dst:
@@ -166,8 +190,10 @@ class Dataparser:
                 tzoffset = -5
         elif self.dt < self.dst2013begin: # ST 2012-2013
             tzoffset = -5
-        else: # DST 2013
+        elif self.dt < self.dst2013end: # DST 2013
             tzoffset = -4
+        else: # ST 2013-2014
+            tzoffset = -5
         self.dt += datetime.timedelta(hours=-tzoffset)
         return fields[1].split(',')
 
@@ -205,7 +231,7 @@ class Dataparser:
             else:
                 fieldsums[i][0] += 1
 
-    def doneaveraging(self):
+    def Xdoneaveraging(self):
         return True
 
     def Xdoneaveraging(self):
@@ -213,7 +239,7 @@ class Dataparser:
         self.count %= 21
         return self.count == 0
 
-    def Xdoneaveraging(self):
+    def doneaveraging(self):
         """ average five minutes worth of samples. """
         done = self.minuteperiod is not None and self.dt.minute / 5 != self.minuteperiod
         self.minuteperiod = self.dt.minute / 5
@@ -239,6 +265,7 @@ class Dataparser:
         for fn in files:
             try:
                 fn = fn.rstrip()
+                self.utc = fn.startswith("/home/r")
                 self.parse_fn(fn)
 
                 self.prepare_for(fn)
@@ -303,8 +330,10 @@ class Datavoltage(Dataparser):
         pass
 
     def normalize_fieldsums(self, fieldsums):
-        """ map the value from an A/D value into a voltage"""
-        fieldsums[0][1] *= 7.25
+        if fieldsums[0][0]:
+            if fieldsums[0][1] / fieldsums[0][0] < 3:
+                # map the value from an A/D value into a voltage
+                fieldsums[0][1] *= 7.25
 
     def set_dt_fields(self, fields):
         """ parse a ctime timestamp and return the voltage field """
@@ -346,6 +375,7 @@ class Datapdepth(Dataparser):
 
 class Datapdepth1(Dataparser):
     """ read the data produced by a pdepth1. We have to pull in pbar data to turn pressure into depth. """
+    pcol = 4
 
     def prepare_for(self, fn):
         """ Given a pdepth1 or pdepth2 filename, find the associated pbar file and read it into a dict"""
@@ -355,7 +385,7 @@ class Datapdepth1(Dataparser):
             pbar_fns = fnmatch.filter(filenames, pfn)
             if len(pbar_fns) == 1: break
         else:
-            raise "too many/few pbar_fns"
+            raise "too many/few pbar_fns: %s %s %s" % ( fn, os.path.dirname(fn), pfn)
         self.pbars = {}
         for line in gzip.open(os.path.join(root, pbar_fns[0])):
             fields = line.split()
@@ -382,9 +412,9 @@ class Datapdepth1(Dataparser):
 
     def add_to_fieldsums(self, fieldsums, fields):
         # make room for the pbar sum.
-        if len(fieldsums) != 5:
+        if len(fieldsums) != self.pcol + 1:
             fieldsums.append([0,0])
-        Dataparser.add_to_fieldsums(self, fieldsums, fields[0:4])
+        Dataparser.add_to_fieldsums(self, fieldsums, fields[0:self.pcol])
         # pull pbar in.
         if self.hms in self.pbars:
             self.last_pbar = self.pbars[self.hms]
@@ -394,8 +424,8 @@ class Datapdepth1(Dataparser):
         except ValueError:
             pass
         else:
-            fieldsums[4][0] += 1
-            fieldsums[4][1] += b
+            fieldsums[self.pcol][0] += 1
+            fieldsums[self.pcol][1] += b
 
     def normalize_fieldsums(self, fieldsums):
         # normalize
@@ -405,21 +435,31 @@ class Datapdepth1(Dataparser):
                 f[0] = 1
         # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset
         calibration = map(float, self.calibrations[self.model + '-' + self.serial]) # crap out if it's not there.
+
+        if calibration[0] == 0 and calibration[1] == 0 and calibration[4] == 0:
+            # broken sensor - pretend it got no samples
+            fieldsums[1][0] = 0
+    
+        if calibration[2] == 0 and calibration[3] == 0 and calibration[5] == 0:
+            # broken sensor - pretend it got no samples
+            fieldsums[2][0] = 0
     
         if fieldsums[1][0]:
-            baro = fieldsums[4][1]
+            baro = fieldsums[self.pcol][1]
             temp = fieldsums[3][1]
             fieldsums[1][1] = (fieldsums[1][1]+ ( 1013.25 - baro ) * 0.402 * calibration[1] + (temp - 35) * calibration[0]) / calibration[1] + calibration[4]
             fieldsums[1][1] *= 2.54
         if fieldsums[2][0]:
-            baro = fieldsums[4][1]
+            baro = fieldsums[self.pcol][1]
             temp = fieldsums[3][1]
             fieldsums[2][1] = (fieldsums[2][1]+ ( 1013.25 - baro ) * 0.402 * calibration[3] + (temp - 35) * calibration[2]) / calibration[3] + calibration[5]
             fieldsums[2][1] *= 2.54
         fieldsums[0][0] = 0 # ignore first column
 
 class Datapdepth2(Datapdepth1):
-    """ same data format """
+    """ same data format, but we have btemperature in column 4. """
+    pcol = 5
+
 
 class Datacond(Dataparser):
     """ we come in with three columns, but need to output only one conductivity in uS/cm. """
@@ -452,9 +492,11 @@ class Datacond(Dataparser):
         for i in range(3):
             # look for a value in the middle range which has a calibration.
             if calibration[i*2]:
+                # if we have a calibration for the two higher ranges, and the value fits,
+                # use it, otherwise use the last one.
                 if ((i == 0 and fieldsums[i][1] < 65535 * 0.90) or
                     (i == 1 and 65535/4 < fieldsums[i][1] < 65535 * 0.90) or
-                    (i == 2 and 65535/4 < fieldsums[i][1])):
+                    (i == 2)):
                     fieldsums[0][1] = calibration[i*2] * math.exp( calibration[i*2+1] * fieldsums[i][1])
                     fieldsums[0][0] = 1
                     break
@@ -463,16 +505,21 @@ class Datacond(Dataparser):
             pass
         # if none chosen, then we don't output any value (outside of calibrated ranges).
 
-class Dataph(Dataparser):
-    def __init__(self, rthssi):
-        """ initialize as usual. Also get calibrations out of Google docs. """
-        Dataparser.__init__(self, rthssi)
-        self.calibrations = {}
-        for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[5:7]
-
+class Datafl3(Dataparser):
     def normalize_fieldsums(self, fieldsums):
-        calibration = map(float, self.calibrations[self.model.lower() + '-' + self.serial]) # crap out if it's not there.
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = map(float, cline[5:11])
+        for i in range(2):
+            col = [1,5][i]
+            if fieldsums[col][0]:
+                fieldsums[col][1] /= fieldsums[0][0]
+                fieldsums[col][1] = calibration[0 + 3 *i] * (fieldsums[col][1] - calibration[2 + 3 *i]) + calibration[1 + 3 *i]
+                fieldsums[col][0] = 1
+
+class Dataph(Dataparser):
+    def normalize_fieldsums(self, fieldsums):
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = map(float, cline[5:7])
         if fieldsums[0][0]:
             fieldsums[0][1] /= fieldsums[0][0]
             fieldsums[0][1] = calibration[0] * fieldsums[0][1] + calibration[1]
@@ -504,6 +551,7 @@ class Datappal(Dataparser):
         return done
 
     def normalize_fieldsums(self, fieldsums):
+        if fieldsums[0][0] == 0: return
         # only output deltas if the start of deltas exceeded threshold
         cal = float(self.calibrations[self.model + '-' + self.serial])
         ave = float(fieldsums[0][1]) / fieldsums[0][0]
@@ -599,8 +647,7 @@ if __name__ == "__main__":
     opts, args = getopt.getopt(sys.argv[1:], "tpsu")
     if ("-t","") in opts:
         doctest.testmod()
-        data = Dataparser()
-        data.rthssi = rthssi
+        data = Dataparser(rthssi)
         print data.get_calibration("pH", "0", datetime.date(2013, 7, 31))
         print data.get_calibration("pH", "0", datetime.date(2013, 8, 31))
         sys.exit()
@@ -608,25 +655,37 @@ if __name__ == "__main__":
     # sort the list of filenames by date
     files = sys.stdin.readlines()
     files.sort( lambda a,b: cmp(a.split('/')[-1], b.split('/')[-1]) )
-    # change it into an array of sensors
+    # change it into an array of filenames indexed by sensors
     filelistlist = []
     lastmodelserial = None
-    for file in files:
-        fnmain = os.path.splitext(os.path.basename(file))
+    for fn in files:
+        site = os.path.basename(os.path.dirname(fn))
+        fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
-        modelserial = "-".join(fnfields[1:3])
+        if fnfields[0] == 'voltage':
+            modelserial = "%s-%s" % (fnfields[0], site)
+        else:
+            modelserial = "-".join(fnfields[1:3])
         if lastmodelserial != modelserial:
             filelistlist.append([])
             lastmodelserial = modelserial
-        filelistlist[-1].append(file)
+        filelistlist[-1].append(fn)
     for filelist in filelistlist:
 
         fn = filelist[0]
+        site = os.path.basename(os.path.dirname(fn))
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
-        model = fnfields[1].lower() 
-        site = os.path.basename(os.path.dirname(fn))
-        sitecode = open(os.path.join(os.path.dirname(fn), ".sitecode")).read()
+        if fnfields[0] == 'voltage':
+            model = fnfields[0].lower() 
+        else:
+            model = fnfields[1].lower() 
+        sitefn = os.path.join(os.path.dirname(fn), ".sitecode")
+        if os.path.exists(sitefn):
+            sitecode= open(sitefn).read().rstrip()
+        else:
+            sitefn = os.path.join(os.path.dirname(os.path.dirname(fn)), ".sitecode")
+            sitecode= open(sitefn).read().rstrip()
 
         if ("-s","") in opts:
             writer = DatawriterSQL(sitecode)
@@ -642,7 +701,11 @@ if __name__ == "__main__":
         data.dofiles(filelist, writer)
         writer.close()
         # rename the files here.
-
+        for fn in filelist:
+            fn = fn.rstrip()
+            fnfields = os.path.split(fn)
+            fnnew = os.path.join( fnfields[0], "done", fnfields[1])
+            os.rename(fn, fnnew)
 
 # EOF
 
