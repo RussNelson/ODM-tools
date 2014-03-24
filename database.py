@@ -207,6 +207,9 @@ class Dataparser:
             [0 for col in range(2)]
             for row in rths_sensors[self.model]
             ]
+    def getcalibration(self, model, serial, date):
+        self.rthssi
+        x
 
     def dofiles(self, files, writer, rthssi):
         """ given a list of files, create running averages and split out by sensor."""
@@ -347,8 +350,7 @@ class Datapdepth1(Dataparser):
         """ initialize as usual. Also get calibrations out of Google docs. """
         Dataparser.__init__(self)
         self.calibrations = {}
-        rthssi = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
-        for row in rthssi:
+        for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[6:12]
 
     def set_dt_fields(self, fields):
@@ -402,8 +404,7 @@ class Datacond(Dataparser):
         """ initialize as usual. Also get calibrations out of Google docs. """
         Dataparser.__init__(self)
         self.calibrations = {}
-        rthssi = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
-        for row in rthssi:
+        for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:11]
 
     def Xdoneaveraging(self):
@@ -443,8 +444,7 @@ class Dataph(Dataparser):
         """ initialize as usual. Also get calibrations out of Google docs. """
         Dataparser.__init__(self)
         self.calibrations = {}
-        rthssi = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
-        for row in rthssi:
+        for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:7]
 
     def normalize_fieldsums(self, fieldsums):
@@ -466,8 +466,7 @@ class Datappal(Dataparser):
         self.raining = False ### how to carry this over from analysis period to analysis period??
         self.previous = None
         self.calibrations = {}
-        rthssi = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
-        for row in rthssi:
+        for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5]
 
     def doneaveraging(self):
@@ -519,8 +518,7 @@ class Dataobs(Dataparser):
     def __init__(self):
         Dataparser.__init__(self)
         self.calibrations = {}
-        rthssi = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
-        for row in rthssi:
+        for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:11]
 
     fields_needing_calibrations = (3, 6, 7)
