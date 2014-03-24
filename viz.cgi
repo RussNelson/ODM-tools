@@ -18,12 +18,7 @@ import cgi
 sitequery = """select SiteID, SiteName  from sites order by SiteName;"""
 varquery = """select VariableID, VariableName, SampleMedium from seriescatalog where SiteID = %s order by VariableName;"""
 graphquery = """select VariableName, VariableUnitsName from seriescatalog where SiteID = %s and VariableID = %s;"""
-valuesquery = """select DateTimeUTC, DataValue from datavalues where SiteID = %s and VariableID = %s;"""
-
-#| SeriesID | SiteID | SiteCode   | SiteName    | SiteType | VariableID | VariableCode | VariableName | Speciation     | VariableUnitsID | VariableUnitsName | SampleMedium | ValueType         | TimeSupport | TimeUnitsID | TimeUnitsName | DataType   | GeneralCategory | MethodID | MethodDescription  | SourceID | Organization        | SourceDescription                                                                                                                              | Citation | QualityControlLevelID | QualityControlLevelCode | BeginDateTime       | EndDateTime         | BeginDateTimeUTC    | EndDateTimeUTC      | ValueCount |
-
-#|      222 |     34 | DutchApple | Dutch Apple | NULL     |        249 | windspeed    | Wind speed   | Not Applicable |             119 | meters per second | Air          | Field Observation |           0 |         100 | NULL          | Continuous | Instrumentation |        1 | Autonomous Sensing |        5 | Clarkson University | Clarkson University in conjunction with the Beacon Institute for Rivers and Estuaries conduct watershed wide monitoring in a real-time fashion | NULL     |                     0 | 0                       | 2012-10-14 13:15:00 | 2013-08-09 17:59:59 | 2012-10-14 18:15:00 | 2013-08-09 22:59:59 |      79900 |
-
+valuesquery = """select DateTimeUTC, DataValue from datavalues where SiteID = %s and VariableID = %s %s %s;"""
 
 sqlfind = """select sites.SiteID, variables.VariableID, methods.MethodID
              from sites, variables, methods
@@ -31,78 +26,84 @@ sqlfind = """select sites.SiteID, variables.VariableID, methods.MethodID
              and variables.VariableCode = '%s'
              and methods.MethodDescription = 'Autonomous Sensing'"""
 
-begin, openlist, middle, graph, closelist, end = """<html><head>
-<meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7; IE=EmulateIE9"> 
-<!--[if IE]><script src="/excanvas_r3/excanvas.js"></script><![endif]-->
-   <meta charset="utf-8" />
-   <title>jQuery UI Datepicker - Default functionality</title>
-   <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
-   <script src="http://code.jquery.com/jquery-1.9.1.js"></script>
-   <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
-   <link rel="stylesheet" href="/resources/demos/style.css" />
-   <script>
-   $(function() {
-     $( "#datepicker" ).datepicker();
-     $( "#datepicker1" ).datepicker();
-     });
-   </script>
-  <script type="text/javascript" src="/dygraph-combined.js"></script>
-  <title>Viz page</title></head><body>
-|<ul>
-|<li>%s</li>
-|<div id="rths" style="width:500px;"></div>
-You can also download this data in <a href="%s">CSV</a> format. All times UTC.
-<script type="text/javascript">
-  g = new Dygraph(
-      document.getElementById("rths"),
-      "%s",
-      { 
-       %s
-       width: '520',
-       title: '%s',
-       ylabel: '%s',
-      }
-  );
-</script>
-|</ul>
-|</body>
-</html>
-""".split("|")
+# read the HTML template into m. Template has HTML comments where it gets split.
+# the content of the all-lowercase comment is the name of the section.
+model = open("viz.html").read()
+sname = 'begin'
+m = {}
+for s in re.split(r'<!--([a-z]+?)-->', model):
+    if sname is not None:
+        m[sname] = s
+        sname = None
+    else:
+        sname = s
+
+def iso8821(d):
+    fields = d.split("/")
+    if len(fields[2]) < 2:
+        fields[2] = "20" + fields[2]
+    return fields[2] + "-" + fields[0] + "-" + fields[1]
+
+def getSiteInfo(cur, SiteID):
+    cur.execute("Select SiteName, Latitude, Longitude, County from sites where SiteID = %s" % SiteID)
+    (site, lat, lon, county) = cur.fetchone()
+    return "<p>Site: %s</p>\n" % site + m['leaftop'] % ("100", "[%s,%s], 13" % (lat, lon)) + m['leafpin'] % (lat, lon, county) + m['leafbottom'] + "<p>County: %s</p>" % county
 
 def main():
 
     con = MySQLdb.connect(host='127.0.0.1', user='odbinsert', passwd='bn8V9!rL', db='odm', port=3307)
     cur = con.cursor()
 
-    form = cgi.FieldStorage()
-    if "siteid" in form and "variableid" not in form and "graph" not in form:
-        cur.execute(varquery % form["siteid"].value)
+    form = cgi.FieldStorage(keep_blank_values = True)
+    if ("siteid" in form or "sitename" in form) and "variableid" not in form and "graph" not in form:
+        if "siteid" in form:
+            siteid = form['siteid'].value
+        else:
+            cur.execute("select SiteID from sites where SiteName = '%s'" % form["sitename"].value)
+            siteid = cur.fetchone()[0]
 
         print "Content-Type: text/html\n"
-        print begin
-        print "Site:", form['sitename'].value
-        print openlist
-        listline = ('<a href="?siteid=SITEID&sitename=SITENAME&variableid=%s">%s (%s)</a>'
-                     .replace("SITEID", form["siteid"].value)
-                     .replace("SITENAME", form["sitename"].value))
+        print m['begin']
+        print getSiteInfo(cur, siteid)
+        if "from" in form:
+            fromval = form["from"].value
+        else:
+            fromval = ""
+        if "to" in form:
+            toval = form["to"].value
+        else:
+            toval = ""
+        print m['dateform'] % (fromval, toval)
+        print """<input type="hidden" name="siteid" value="%s"/>""" % siteid
+        cur.execute(varquery % siteid)
         for row in cur.fetchall():
-            print middle % (listline % row)
-        print closelist
-        print end
+            print '<br><input type="radio" name="variableid" value="%s">%s (%s)</a>' % row
+        print m['closeform']
+        print m['end']
 
     elif "siteid" in form and "variableid" in form and "graph" not in form:
         cur.execute(graphquery % (form["siteid"].value, form["variableid"].value))
         (title, ylabel) = cur.fetchone()
-        url = "?siteid=%s&variableid=%s&graph=%s" % (form["siteid"].value, form["variableid"].value, title)
+        url = "?siteid=%s&variableid=%s&from=%s&to=%s&graph=%s" % (
+          form["siteid"].value,
+          form["variableid"].value,
+          form["from"].value,
+          form["to"].value,
+          title)
         options = ""
         print "Content-Type: text/html\n"
-        print begin
-        print "Site:", form['sitename'].value
-        print graph % (url, url, options, title, ylabel)
-        print end
+        print m['begin']
+        print getSiteInfo(cur, form['siteid'].value)
+        print m['graph'] % (url, url, options, title, ylabel)
+        print m['end']
          
     elif "siteid" in form and "variableid" in form and "graph" in form:
-        cur.execute(valuesquery % (form["siteid"].value, form["variableid"].value))
+        # note: this snippet returns CSV, not HTML
+        fromdate = form["from"].value
+        todate = form["to"].value
+        if fromdate: fromdate = " and DateTimeUTC >= '%s'" % iso8821(fromdate)
+        if   todate:   todate = " and DateTimeUTC <= '%s'" % iso8821(todate)
+        cur.execute(valuesquery % (form["siteid"].value, form["variableid"].value, fromdate, todate))
         print "Content-Type: text/plain\n"
         print "Date,%s" % form["graph"].value
         for row in cur.fetchall():
@@ -111,16 +112,12 @@ def main():
     else:
         cur.execute(sitequery)
         print "Content-Type: text/html\n"
-        print begin
-        print """Begin Date: <input type="text" id="datepicker" name="begindate" />"""
-        print """End Date: <input type="text" id="datepicker1" name="enddate" />"""
-        print openlist
+        print m['begin']
+        print m['dateform'] % ("", "")
         for row in cur.fetchall():
-            r = list(row)
-            r.append(row[1])
-            print middle % ('<a href="?siteid=%s&sitename=%s">%s</a>' % tuple(r))
-        print closelist
-        print end
+            print '<br><input type="radio" name="siteid" value="%s">%s</a>' % row
+        print m['closeform']
+        print m['end']
 
 main()
 
