@@ -1,7 +1,12 @@
-<html><head>
-   <meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7; IE=EmulateIE9"> 
-<!--[if IE]><script src="/excanvas_r3/excanvas.js"></script><![endif]-->
-   <meta charset="utf-8" />
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7; IE=EmulateIE9">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <LINK REL="SHORTCUT ICON" HREF="favicon.ico">
+    <!--[if IE]><script src="excanvas.js"></script><![endif]-->
+
    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.css" />
    <!--[if lte IE 8]>
           <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css" />
@@ -15,7 +20,6 @@
    <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
    <script src="http://code.jquery.com/jquery-1.9.1.js"></script>
    <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
-   <link rel="stylesheet" href="/resources/demos/style.css" />
    <script>
    $(function() {
     $( "#from" ).datepicker({
@@ -37,7 +41,12 @@
   });
   </script>
   <script type="text/javascript" src="/dygraph-combined.js"></script>
-  <title>Real-Time Hydrologic System</title>
+
+  <link rel="stylesheet" href="jQuery-html5-canvas-panorama-plugin-master/ddpanorama.css" />
+  <script type="text/javascript" src="jQuery-html5-canvas-panorama-plugin-master/jquery.ba-outside-events.min.js"> </script>
+  <script type="text/javascript" src="jQuery-html5-canvas-panorama-plugin-master/ddpanorama.min.js"> </script>
+  
+  <title>RTHS - %s</title>
 </head>
 <body>
 <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
@@ -47,19 +56,41 @@
         <!--[if lt IE 9]><img alt="Acme Supplies" src="REONLogo.png" /><![endif]-->
     </a>
     <h1>Real-Time Hydrologic System</h1>
- <!--dateform--><form submit="">
+<!--acmemapper-->
+Aerial photo on <a href="http://mapper.acme.com?ll=%s,%s&z=20&t=5">ACME Mapper</a>
+<!--dateform--><form submit="">
 <p>(Optional: choose a starting and ending date.)</p>
 <label for="from">From</label>
 <input type="text" id="from" name="from" value="%s"/>
 <label for="to">to</label>
 <input type="text" id="to" name="to" value="%s"/>
+<!--checkall-->
+<script>$(function(){
+    $("#all").change(function(){
+            $("#formrepeats input:checkbox").attr("checked", this.checked);
+    });
+
+    var childCheckBoxes = $("#formrepeats input:checkbox");
+    var totalcheckBoxesCount = childCheckBoxes.length;
+
+    childCheckBoxes.change(function(){
+            var checkedBoxesCount = childCheckBoxes.filter(":checked").length;    
+                $("#all").attr("checked", totalcheckBoxesCount === checkedBoxesCount);
+    });
+});
+</script>
+<br><input id="all" type="checkbox"/><label id="all">All</label>
+<div id="formrepeats">
+<!--checkboxes-->
+<br><input type="checkbox" name="variableidid-%s">%s</a>
 <!--openlist--><ul>
 <!--middle--><li>%s</li>
-<!--graph--><div class="prepend-3" id="rths" style="width:600px; background-color:#d0edf7"></div>
-You can also download this data in <a href="%s">CSV</a> format. All times UTC.
+<!--graph--><hr>
+<div class="prepend-3" id="rths%d" style="width:600px; background-color:#d0edf7"></div>
+You can also download this data in <a href="%s">standard CSV</a> format or <a href="%s">Excel CSV</a> with UTC times. All plots are in standard time (and never daylight savings time).
 <script type="text/javascript">
   g = new Dygraph(
-      document.getElementById("rths"),
+      document.getElementById("rths%d"),
       "%s",
       { 
        %s
@@ -69,6 +100,7 @@ You can also download this data in <a href="%s">CSV</a> format. All times UTC.
       }
   );
 </script>
+<!--closechecks--></div>
 <!--closelist--></ul>
 <!--closeform--><br><input type="submit" />
 </form>
@@ -89,11 +121,17 @@ L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
 marker.bindPopup("%s");
 <!--leafbottom-->
 </script>
+<!--panorama-->
+<script>
+    document.write('<div class="append-1 prepend-1" ><img id="pano%s" src="%s" alt="" /></div>');
+    jQuery(function(){
+        jQuery("#pano%s").ddpanorama({width:800, height:100, startPos:1.0, minSpeed:10});
+    });
+</script>
 <!--images-->
-    <div class="append-1 prepend-1">
-    <p><img src="images/IMG_3810.jpg.png" alt="Dutch Apple Cruises" />
-       <img src="images/IMG_0219.jpg.png" alt="North Creek" /></p>
-    </div>
+<div class="append-1 prepend-1">
+<p><img src="images/IMG_3810.jpg.png" alt="Dutch Apple Cruises" />
+<img src="images/IMG_0219.jpg.png" alt="North Creek" /></p>
 </div>
 <!--end--></body>
 </html>
