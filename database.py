@@ -466,10 +466,14 @@ class Datavoltage(Dataparser):
 
     def set_dt_fields(self, fields):
         """ parse a ctime timestamp and return the voltage field """
+        # Wed Mar 12 18:50:55 2014 12.112 0.000 0.217
         t = " ".join(fields[1:5])
         then = time.strptime(t, "%b %d %H:%M:%S %Y")
         self.dt = datetime.datetime.fromtimestamp(time.mktime(then))
-        return fields[5:6]
+        # append some extra fields in case we have short columns.
+        fields.append("")
+        fields.append("")
+        return fields[5:8]
 
 class Datapdepth(Dataparser):
     """ read the data produced by a pdepth. We have to throw out bad temperature samples. """
