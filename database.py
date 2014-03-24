@@ -125,7 +125,8 @@ class DatawriterSQL(DatawriterCSV):
 
 class Dataparser:
 
-    def __init__(self):
+    def __init__(self, rthssi):
+        self.rthssi = rthssi
         self.count = 0
         self.minuteperiod = None
 
@@ -170,6 +171,22 @@ class Dataparser:
         self.dt += datetime.timedelta(hours=-tzoffset)
         return fields[1].split(',')
 
+    def date_parse(self, dstr):
+        fields = dstr.split("/")
+        return datetime.date(int(fields[2]), int(fields[0]), int(fields[1]))
+
+    def get_calibration(self, model, serial, date):
+        """ find the right calibration value. Crap out if not found. """
+        model = model.lower()
+        for line in self.rthssi:
+            if line[0] == model and line[1] == serial:
+                if line[4] == "":
+                    return line
+                dt = self.date_parse(line[4])
+                if dt < date: # only if it was calibrated before this measurement.
+                    latest = line
+        return latest # if there was none, we raise an exception.
+
     def normalize_fieldsums(self, fieldsums):
         """ normalize the sums as needed for calibration constants, etc """
         pass
@@ -188,7 +205,7 @@ class Dataparser:
             else:
                 fieldsums[i][0] += 1
 
-    def Xdoneaveraging(self):
+    def doneaveraging(self):
         return True
 
     def Xdoneaveraging(self):
@@ -196,7 +213,7 @@ class Dataparser:
         self.count %= 21
         return self.count == 0
 
-    def doneaveraging(self):
+    def Xdoneaveraging(self):
         """ average five minutes worth of samples. """
         done = self.minuteperiod is not None and self.dt.minute / 5 != self.minuteperiod
         self.minuteperiod = self.dt.minute / 5
@@ -207,13 +224,9 @@ class Dataparser:
             [0 for col in range(2)]
             for row in rths_sensors[self.model]
             ]
-    def getcalibration(self, model, serial, date):
-        self.rthssi
-        x
 
-    def dofiles(self, files, writer, rthssi):
+    def dofiles(self, files, writer):
         """ given a list of files, create running averages and split out by sensor."""
-        self.rthssi = rthssi
 
         fn = files[0]
         self.parse_first_fn(fn)
@@ -234,7 +247,10 @@ class Dataparser:
                     fields = line.split()
                     if len(fields) < 2: continue
                     if fields[0] == "starting": continue
-                    fields = self.set_dt_fields(fields)
+                    try:
+                        fields = self.set_dt_fields(fields)
+                    except ValueError:
+                        continue # if the date cannot be parsed
                     if len(fields) != len(rths_sensors[self.model]): continue
                     self.add_to_fieldsums(fieldsums, fields)
                     if self.doneaveraging():
@@ -245,8 +261,12 @@ class Dataparser:
                 sys.stderr.write(fn + "\n")
                 raise
         # finish off any remaining samples
-        self.normalize_fieldsums(fieldsums)
-        writer.write(self.dt, fieldsums)
+        try:
+            self.normalize_fieldsums(fieldsums)
+            writer.write(self.dt, fieldsums)
+        except:
+            print files 
+            raise
 
         if self.dt is not None:
             # remember the most recently found timestamp in a file.
@@ -295,8 +315,8 @@ class Datavoltage(Dataparser):
 
 class Datapdepth(Dataparser):
     """ read the data produced by a pdepth. We have to throw out bad temperature samples. """
-    def __init__(self):
-        Dataparser.__init__(self)
+    def __init__(self, rthssi):
+        Dataparser.__init__(self, rthssi)
         self.lastavgt = None
 
     def add_to_fieldsums(self, fieldsums, fields):
@@ -339,16 +359,18 @@ class Datapdepth1(Dataparser):
         self.pbars = {}
         for line in gzip.open(os.path.join(root, pbar_fns[0])):
             fields = line.split()
+            if len(fields) != 2: continue
             if fields[1].startswith("reading"): continue
             self.pbars[fields[0]] = fields[1].rstrip()
         # get the first one, to make sure that we have one.
         ks = self.pbars.keys()
         ks.sort()
-        self.last_pbar = self.pbars[ks[0]]
+        if len(ks):
+            self.last_pbar = self.pbars[ks[0]]
 
-    def __init__(self):
+    def __init__(self, rthssi):
         """ initialize as usual. Also get calibrations out of Google docs. """
-        Dataparser.__init__(self)
+        Dataparser.__init__(self, rthssi)
         self.calibrations = {}
         for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[6:12]
@@ -384,12 +406,14 @@ class Datapdepth1(Dataparser):
         # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset
         calibration = map(float, self.calibrations[self.model + '-' + self.serial]) # crap out if it's not there.
     
-        baro = fieldsums[4][1]
-        temp = fieldsums[3][1]
         if fieldsums[1][0]:
+            baro = fieldsums[4][1]
+            temp = fieldsums[3][1]
             fieldsums[1][1] = (fieldsums[1][1]+ ( 1013.25 - baro ) * 0.402 * calibration[1] + (temp - 35) * calibration[0]) / calibration[1] + calibration[4]
             fieldsums[1][1] *= 2.54
         if fieldsums[2][0]:
+            baro = fieldsums[4][1]
+            temp = fieldsums[3][1]
             fieldsums[2][1] = (fieldsums[2][1]+ ( 1013.25 - baro ) * 0.402 * calibration[3] + (temp - 35) * calibration[2]) / calibration[3] + calibration[5]
             fieldsums[2][1] *= 2.54
         fieldsums[0][0] = 0 # ignore first column
@@ -400,9 +424,9 @@ class Datapdepth2(Datapdepth1):
 class Datacond(Dataparser):
     """ we come in with three columns, but need to output only one conductivity in uS/cm. """
 
-    def __init__(self):
+    def __init__(self, rthssi):
         """ initialize as usual. Also get calibrations out of Google docs. """
-        Dataparser.__init__(self)
+        Dataparser.__init__(self, rthssi)
         self.calibrations = {}
         for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:11]
@@ -440,9 +464,9 @@ class Datacond(Dataparser):
         # if none chosen, then we don't output any value (outside of calibrated ranges).
 
 class Dataph(Dataparser):
-    def __init__(self):
+    def __init__(self, rthssi):
         """ initialize as usual. Also get calibrations out of Google docs. """
-        Dataparser.__init__(self)
+        Dataparser.__init__(self, rthssi)
         self.calibrations = {}
         for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:7]
@@ -460,8 +484,8 @@ class Datappal(Dataparser):
     threshold = 0.0087 # rain period starts with a delta at least this big.
     threshold = 0.039  # per Jimmy 6/21/213
 
-    def __init__(self):
-        Dataparser.__init__(self)
+    def __init__(self, rthssi):
+        Dataparser.__init__(self, rthssi)
         self.minuteperiod = None
         self.raining = False ### how to carry this over from analysis period to analysis period??
         self.previous = None
@@ -515,8 +539,8 @@ class Dataobs(Dataparser):
     07:00:33 0,485828,G,92.20,328.07,000
     """
 
-    def __init__(self):
-        Dataparser.__init__(self)
+    def __init__(self, rthssi):
+        Dataparser.__init__(self, rthssi)
         self.calibrations = {}
         for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:11]
@@ -568,14 +592,17 @@ if __name__ == "__main__":
     import getopt
     import doctest
 
-    inf = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
     rthssi = []
-    for row in inf:
-        rthssi.append(row)
+    for line in csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv")):
+        rthssi.append(line)
 
     opts, args = getopt.getopt(sys.argv[1:], "tpsu")
     if ("-t","") in opts:
         doctest.testmod()
+        data = Dataparser()
+        data.rthssi = rthssi
+        print data.get_calibration("pH", "0", datetime.date(2013, 7, 31))
+        print data.get_calibration("pH", "0", datetime.date(2013, 8, 31))
         sys.exit()
 
     # sort the list of filenames by date
@@ -608,11 +635,11 @@ if __name__ == "__main__":
         else:
             writer = DatawriterCSV()
         if 'Data'+model in  locals():
-            data = locals()['Data'+model]()
+            data = locals()['Data'+model](rthssi)
         else:
-            data = Dataparser()
+            data = Dataparser(rthssi)
 
-        data.dofiles(filelist, writer, rthssi)
+        data.dofiles(filelist, writer)
         writer.close()
         # rename the files here.
 
