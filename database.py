@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# vim: set ai sw=4 sta et fo=croql
                                                                                # die, PEP8's 80-column punched card requirement!
 
 # DST was at 2AM on November 4th, 2012
@@ -12,15 +13,47 @@ class DatawriterCSV:
     """ provide methods for Dataparser to call to write data into a set of streams. """
     def open(self, fields, serial):
         self.fieldfiles = {}
-	for f,fieldnum,values in fields:
-	    outf = open(f + "-%s.csv" % serial, "w")
-	    outf.write(values)
-	    self.fieldfiles[fieldnum] = outf
+        for f,fieldnum,values in fields:
+            outf = open(f + "-%s.csv" % serial, "w")
+            outf.write(values)
+            self.fieldfiles[fieldnum] = outf
     def write(self, dt, fieldsums):
-	timestamp = time.strftime("%m/%d/%Y %H:%M:%S", dt)
-	for fieldnum,outf in self.fieldfiles.items():
-	    if fieldsums[fieldnum][0]:
-		outf.write("%s,%.3f\n" % (timestamp, fieldsums[fieldnum][1] / fieldsums[fieldnum][0]))
+        timestamp = time.strftime("%m/%d/%Y %H:%M:%S", dt)
+        for fieldnum,outf in self.fieldfiles.items():
+            if fieldsums[fieldnum][0]:
+                outf.write("%s,%.3f\n" % (timestamp, fieldsums[fieldnum][1] / fieldsums[fieldnum][0]))
+
+
+class DatawriterSQL(DatawriterCSV):
+    """ provide methods for Dataparser to call to write data into a set of streams. """
+
+    import MySQLdb as mdb
+
+    def __init__():
+        self.con = mdb.connect(host='127.0.0.1', user='odbinsert', passwd='bn8V9!rL', db='odm', port=3307)
+        self.cur = self.con.cursor()
+
+    def open(self, fields, serial):
+        self.fieldfiles = {}
+        for f,fieldnum,values in fields:
+            outf = open(f + "-%s.csv" % serial, "w")
+            outf.write(values)
+            self.fieldfiles[fieldnum] = outf
+    def write(self, dt, fieldsums):
+        timestamp = time.strftime("%m/%d/%Y %H:%M:%S", dt)
+        for fieldnum,outf in self.fieldfiles.items():
+            if fieldsums[fieldnum][0]:
+                outf.write("%s,%.3f\n" % (timestamp, fieldsums[fieldnum][1] / fieldsums[fieldnum][0]))
+
+    def insert(SiteCode, VariableCode, localtime, value):
+        ESTtime = datetime.isoformat(localtime)
+        UTCtime = datetime.isoformat(datetime.utctimetuple(localtime))
+        return self.cur.execute("insert into DataValues (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,DataValue,MethodID,SourceID,CensorCode)" +
+        "( select Sites.SiteID,'%s',-5,'%s',Variables.VariableID,%s,Methods.MethodID,1,'nc' " +
+        "from Sites, Variables, Methods " +
+        "where Sites.SiteCode = '%s' and Variables.VariableCode = '%s' and Methods.MethodDescription = 'Autonomous Sensing');" % 
+        (value, ESTtime, UTCTime, SiteCode, VariableCode))
+
 
 class Dataparser:
 
@@ -29,28 +62,28 @@ class Dataparser:
         self.files.sort( lambda a,b: cmp(a.split('/')[-1], b.split('/')[-1]) )
 
     fieldnames = { "windair": (
-		 ("windspeed", 0, "Date,Wind Speed\n"),
-		 ("winddir", 1, "Date,Wind Direction\n"),
+                 ("windspeed", 0, "Date,Wind Speed\n"),
+                 ("winddir", 1, "Date,Wind Direction\n"),
                  ("airtemp", 2, "Date,Temperature\n"),
-		 ("humidity", 3, "Date,Relative Humidity\n")
-	        ),
-		"ppal": (
-		 ("bigdepth", 0, "Date,Depth\n"),
-		 ("littledepth", 1, "Date,Depth\n"),
-		 ("temperature", 2, "Date,Temperature\n")
-	        ),
-		"ppal1": (
-		 ("bigdepth", 0, "Date,Depth\n"),
-		 ("littledepth", 1, "Date,Depth\n"),
-		 ("temperature", 2, "Date,Temperature\n")
-	        ),
-		"voltage": (
-		 ("voltage", 0, "Date,Voltage\n"),
-	        ),
-		"pdepth": (
-		 ("littledepth", 0, "Date,Depth\n"),
-		 ("temperature", 1, "Date,Temperature\n")
-	        ),
+                 ("humidity", 3, "Date,Relative Humidity\n")
+                ),
+                "ppal": (
+                 ("bigdepth", 0, "Date,Depth\n"),
+                 ("littledepth", 1, "Date,Depth\n"),
+                 ("temperature", 2, "Date,Temperature\n")
+                ),
+                "ppal1": (
+                 ("bigdepth", 0, "Date,Depth\n"),
+                 ("littledepth", 1, "Date,Depth\n"),
+                 ("temperature", 2, "Date,Temperature\n")
+                ),
+                "voltage": (
+                 ("voltage", 0, "Date,Voltage\n"),
+                ),
+                "pdepth": (
+                 ("littledepth", 0, "Date,Depth\n"),
+                 ("temperature", 1, "Date,Temperature\n")
+                ),
             }
 
     def parse_first_fn(self, fn):
@@ -94,7 +127,7 @@ class Dataparser:
                 fn = fn.rstrip()
                 if not lazy_opened:
                     self.parse_first_fn(fn)
-		    writer.open(self.fieldnames[self.model], self.serial)
+                    writer.open(self.fieldnames[self.model], self.serial)
                     fieldsums = [[0,0]] * len(self.fieldnames[self.model])
                     lazy_opened = True
              
@@ -105,10 +138,10 @@ class Dataparser:
                     for i in range(len(fieldsums)):
                         fieldsums[i][0] += 1
                         fieldsums[i][1] += float(fields[i])
-		    count += 1
+                    count += 1
                     if count > 20:
                         self.normalize_fieldsums(fieldsums)
-			writer.write(self.dt, fieldsums)
+                        writer.write(self.dt, fieldsums)
                         fieldsums = [[0,0]] * len(self.fieldnames[self.model])
                         count = 0
             except:
@@ -116,7 +149,7 @@ class Dataparser:
                 raise
 
         if self.dt is not None:
-	    # remember the most recently found timestamp in a file.
+            # remember the most recently found timestamp in a file.
             lastrx = time.mktime(self.dt)
             fn = "timestamp-%s-%s" % (self.model, self.serial)
             open(fn, "w")
@@ -152,20 +185,20 @@ class Datapdepth(Dataparser):
         # add the depth.
         fieldsums[0][0] += 1
         fieldsums[0][1] += float(fields[0])
-	# throw out temperature samples which are more than +/- 5% different than last average.
-	temp = float(fields[1])
-	if self.lastavgt is None or self.lastavgt * 0.95 < temp < self.lastavgt * 1.05:
+        # throw out temperature samples which are more than +/- 5% different than last average.
+        temp = float(fields[1])
+        if self.lastavgt is None or self.lastavgt * 0.95 < temp < self.lastavgt * 1.05:
             fieldsums[1][0] += 1
             fieldsums[1][1] += temp
 
     def normalize_fieldsums(self, fieldsums):
-	# remember the last average, but ignore the first one.
-	if self.lastavgt:
-	    self.lastavgt = fieldsums[1][1] / fieldsums[1][0]
-	else:
-	    self.lastavgt = fieldsums[1][1] / fieldsums[1][0]
-	    # but if there wasn't one, don't output this one.
-	    fieldsums[1][0] = 0
+        # remember the last average, but ignore the first one.
+        if self.lastavgt:
+            self.lastavgt = fieldsums[1][1] / fieldsums[1][0]
+        else:
+            self.lastavgt = fieldsums[1][1] / fieldsums[1][0]
+            # but if there wasn't one, don't output this one.
+            fieldsums[1][0] = 0
 
 if __name__ == "__main__":
     if sys.argv[1] == 'voltage':
@@ -178,3 +211,4 @@ if __name__ == "__main__":
     data.dofiles(writer)
 
 # EOF
+
