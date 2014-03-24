@@ -23,19 +23,21 @@
    <script>
    $(function() {
     $( "#from" ).datepicker({
+      dateFormat: "yy-mm-dd",
       defaultDate: "-2w",
       changeMonth: true,
       numberOfMonths: 3,
       onClose: function( selectedDate ) {
-        $( "#to" ).datepicker( "option", "minDate", selectedDate );
+        //$( "#to" ).datepicker( "option", "minDate", selectedDate );
       }
     });
     $( "#to" ).datepicker({
+      dateFormat: "yy-mm-dd",
       defaultDate: "now",
       changeMonth: true,
       numberOfMonths: 3,
       onClose: function( selectedDate ) {
-        $( "#from" ).datepicker( "option", "maxDate", selectedDate );
+        //$( "#from" ).datepicker( "option", "maxDate", selectedDate );
       }
     });
   });
@@ -82,7 +84,7 @@ Aerial photo on <a href="http://mapper.acme.com?ll=%s,%s&z=20&t=5">ACME Mapper</
 <br><input id="all" type="checkbox"/><label id="all">All</label>
 <div id="formrepeats">
 <!--checkboxes-->
-<br><input type="checkbox" name="variableidid-%s">%s</a>
+<br><input type="checkbox" name="seriesid-%s" value="%s">%s</a>
 <!--openlist--><ul>
 <!--middle--><li>%s</li>
 <!--graph--><hr>
