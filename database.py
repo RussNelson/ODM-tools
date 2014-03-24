@@ -2,7 +2,6 @@
 # vim: set ai sw=4 sta fo=croql ts=8 expandtab syntax=python
                                                                                # die, PEP8's 80-column punched card requirement!
 
-# DST was at 2AM on November 4th, 2012
 
 import time
 import sys
@@ -21,19 +20,31 @@ class DatawriterCSV:
     def __init__(self):
         pass
 
-    def open(self, fields, model, serial):
+    def _makefn(self, fn, serial, ymdh):
+        return fn + "-%s.csv" % serial
+
+    def open(self, fields, model, serial, ymdh):
         self.fieldfiles = {}
         for fn,fieldnum,values in fields:
-            outf = open(fn + "-%s.csv" % serial, "w")
+            outf = open(self._makefn(fn, serial, ymdh), "w")
             outf.write(values)
             self.fieldfiles[fieldnum] = outf
 
     def write(self, dt, fieldsums):
-        timestamp = time.strftime("%m/%d/%Y %H:%M:%S", dt)
+        tzoffset = -4 # DST can go to hell.
+        dt += datetime.timedelta(hours=tzoffset)
+        timestamp = dt.strftime("%m/%d/%Y %H:%M:%S")
         for fieldnum,outf in self.fieldfiles.items():
             if fieldsums[fieldnum][0]:
                 outf.write("%s,%.3f\n" % (timestamp, fieldsums[fieldnum][1] / fieldsums[fieldnum][0]))
 
+    def close(self):
+        pass
+
+class DatawriterCSVone(DatawriterCSV):
+    """ like CSV, but one for one hour's worth of data, and passes the date through to the name """
+    def _makefn(self, fn, serial, ymdh):
+       return "rths/%s/%s/" % (ymdh[0:4], ymdh[0:6]) + fn + "-%s-%s.csv" % (serial, ymdh)
 
 class DatawriterSQL(DatawriterCSV):
     """ provide methods for Dataparser to call to write data into a set of streams. """
@@ -54,7 +65,7 @@ class DatawriterSQL(DatawriterCSV):
                 if model == m and serial == s:
                     return (id, name, county)
 
-    def open(self, fields, model, serial):
+    def open(self, fields, model, serial, ymdh):
         self.fieldcolumns = []
         for fn,fieldnum,values in fields:
             name = self.model_serial(model, serial)[1].replace(" ", "")
@@ -66,18 +77,25 @@ class DatawriterSQL(DatawriterCSV):
             if fieldsums[i][0]:
                 self.insert(site, variable, dt, fieldsums[i][1] / fieldsums[i][0])
 
-    def insert(self, SiteCode, VariableCode, localtime, value):
-        ESTtime = localtime.isoformat()
-        UTCtime = localtime.utctimetuple().isoformat()
-        #return self.cur.execute
-        print ("insert into DataValues (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,DataValue,MethodID,SourceID,CensorCode)" +
-        "( select Sites.SiteID,'%s',-5,'%s',Variables.VariableID,%s,Methods.MethodID,1,'nc' " +
+    def close(self):
+        self.con.commit()
+
+    def insert(self, SiteCode, VariableCode, dt, value):
+        UTCtime = dt.isoformat()
+        tzoffset = -5 # DST can go to hell.
+        dt += datetime.timedelta(hours=tzoffset)
+        ESTtime = dt.isoformat()
+        return self.cur.execute(("insert into DataValues (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,DataValue,MethodID,SourceID,CensorCode)" +
+        "( select Sites.SiteID,'%s',%d,'%s',Variables.VariableID,'%s',Methods.MethodID,1,'nc' " +
         "from Sites, Variables, Methods " +
-        "where Sites.SiteCode = '%s' and Variables.VariableCode = '%s' and Methods.MethodDescription = 'Autonomous Sensing');" % 
-        (value, ESTtime, UTCTime, SiteCode, VariableCode))
+        "where Sites.SiteCode = '%s' and Variables.VariableCode = '%s' and Methods.MethodDescription = 'Autonomous Sensing');") % 
+        (ESTtime, tzoffset, UTCtime, value, SiteCode, VariableCode))
 
 
 class Dataparser:
+
+    def __init__(self):
+        self.count = 0
 
     def readfilenames(self, inf):
         self.files = inf.readlines()
@@ -91,28 +109,72 @@ class Dataparser:
                  ("humidity", 3, "Date,Relative Humidity\n")
                 ),
                 "ppal": (
-                 ("bigdepth", 0, "Date,Depth\n"),
-                 ("littledepth", 1, "Date,Depth\n"),
-                 ("temperature", 2, "Date,Temperature\n")
+                 ("depth", 0, "Date,Depth\n"),
+                 ("temperature", 1, "Date,Temperature\n")
                 ),
                 "ppal1": (
                  ("bigdepth", 0, "Date,Depth\n"),
                  ("littledepth", 1, "Date,Depth\n"),
                  ("temperature", 2, "Date,Temperature\n")
                 ),
-                "voltage": (
+                 "pbar": (
+                 ("temperature", 0, "Date,Temperature\n"),
+                 ("baro", 1, "Date,Air Pressure\n"),
+                ),
+                 "pbar1": (
+                 ("temperature", 0, "Date,Temperature\n"),
+                 ("baro", 1, "Date,Air Pressure\n"),
+                 ("height", 2, "Date,Height\n"),
+                ),
+                 "pbar2": (
+                 ("temperature", 0, "Date,Temperature\n"),
+                 ("baro", 1, "Date,Air Pressure\n"),
+                ),
+                 "pbar3": (
+                 ("temperature", 0, "Date,Temperature\n"),
+                 ("baro", 1, "Date,Air Pressure\n"),
+                ),
+                 "voltage": (
                  ("voltage", 0, "Date,Voltage\n"),
                 ),
+                "COND": (
+                 ("high", 0, "Date,High\n"),
+                 ("medium", 1, "Date,Medium\n"),
+                 ("low", 1, "Date,Low\n"),
+                ),
+                "DO": (
+                 ("do", 0, "Date,DO\n"),
+                ),
+                "DEPTH": (
+                 ("depth", 0, "Date,15PSI\n"),
+                ),
+                "OBS": (
+                 ("ref", 3, "Date,Reference\n"),
+                 ("optical", 4, "Date,Optical\n"),
+                ),
+                #"DEPTH2": (
+                # ("depth", 0, "Date,15PSI\n"),
+                # ("depth", 0, "Date,15PSI\n"),
+                #),
                 "pdepth": (
                  ("littledepth", 0, "Date,Depth\n"),
                  ("temperature", 1, "Date,Temperature\n")
                 ),
                 "pdepth1": (
-                 ("something", 0, "Date,Something\n"),
+                 ("ticks", 0, "Date,Milliseconds\n"),
                  ("littledepth", 1, "Date,Depth\n"),
                  ("bigdepth", 2, "Date,Depth\n"),
                  ("temperature", 3, "Date,Temperature\n")
                 ),
+                "pdepth2": (
+                 ("ticks", 0, "Date,Milliseconds\n"),
+                 ("littledepth", 1, "Date,Depth\n"),
+                 ("bigdepth", 2, "Date,Depth\n"),
+                 ("temperature", 3, "Date,Temperature\n"),
+                 ("btemperature", 4, "Date,Temperature\n")
+                ),
+                # pbar
+                # pbar1
             }
 
     def parse_first_fn(self, fn):
@@ -122,19 +184,42 @@ class Dataparser:
         fnfields = fnmain[0].split('-')
         self.model = fnfields[1]
         self.serial = fnfields[2]
+        self.YMDH = fnfields[3] # YYYYMMDDHH
+
+    def parse_fn(self, fn):
+        fnmain = os.path.splitext(os.path.basename(fn))
+        fnfields = fnmain[0].split('-')
         self.YMD = fnfields[3][:-2] # YYYYMMDD
+        self.dst = None
  
+    dst2012end = datetime.datetime(2012, 11, 4, 1) # actually at 2AM, but it all goes into the 1AM file.
+    dst2012endnext = datetime.datetime(2012, 11, 4, 2)
+    dst2013begin = datetime.datetime(2013, 3, 10, 2)
+    dst2013end = datetime.datetime(2013, 11, 3, 2)
+
     def set_dt_fields(self, fields):
-        """ remember the full datetime for each line, and return the data fields. """
-        # 10:06:19 4.59,999.00,257
-        self.dt = time.strptime(self.YMD+fields[0], "%Y%m%d%H:%M:%S")
+        """ remember the full UTC datetime for each line, and return the data fields. """
+        # the data files were recorded in Eastern time, complete with DST crap.
+        # each line is of the form: 10:06:19 4.59,999.00,257
+        # we get it pre-split into two fields at the space.
+        self.dt = datetime.datetime(*time.strptime(self.YMD+fields[0], "%Y%m%d%H:%M:%S")[:6])
+        if self.dt < self.dst2012end: # DST 2012
+            tzoffset = -4
+        elif self.dt < self.dst2012endnext: # the last hour of DST 2012
+            if self.dst is None or self.dt > self.dst:
+                tzoffset = -4
+                self.dst = self.dt # watch for wrap-around
+            else:
+                tzoffset = -5
+        elif self.dt < self.dst2013begin: # ST 2012-2013
+            tzoffset = -5
+        else: # DST 2013
+            tzoffset = -4
+        self.dt += datetime.timedelta(hours=-tzoffset)
         return fields[1].split(',')
 
     def normalize_fieldsums(self, fieldsums):
         """ normalize the sums as needed for calibration constants, etc """
-        pass
-
-    def __init__(self):
         pass
 
     def prepare_for(self, fn):
@@ -144,8 +229,17 @@ class Dataparser:
     def add_to_fieldsums(self, fieldsums, fields):
         """add the fields to the sums."""
         for i in range(len(fields)):
-            fieldsums[i][0] += 1
-            fieldsums[i][1] += float(fields[i])
+            try:
+                fieldsums[i][1] += float(fields[i])
+            except ValueError:
+                pass
+            else:
+                fieldsums[i][0] += 1
+
+    def doneaveraging(self):
+        self.count += 1
+        self.count %= 21
+        return self.count == 0
 
     def dofiles(self, writer):
         """ read a list of files, create running averages and split out by sensor."""
@@ -154,21 +248,17 @@ class Dataparser:
         lazy_opened = False
 
         self.dt = None # keep track of the latest timestamp found.
-        count = 0
         fieldsums = []
         for fn in self.files:
             try:
                 fn = fn.rstrip()
+                self.parse_fn(fn)
+
                 if not lazy_opened:
                     self.parse_first_fn(fn)
-                    writer.open(self.fieldnames[self.model], self.model, self.serial)
+                    writer.open(self.fieldnames[self.model], self.model, self.serial, self.YMDH)
                     fieldsums = [[0 for col in range(2)] for row in range(len(self.fieldnames[self.model]))]
                     lazy_opened = True
-
-                # get the YMD of this file.
-                fnmain = os.path.splitext(os.path.basename(fn))
-                fnfields = fnmain[0].split('-')
-                self.YMD = fnfields[3][:-2] # YYYYMMDD
 
                 self.prepare_for(fn)
              
@@ -176,19 +266,17 @@ class Dataparser:
                     fields = self.set_dt_fields(line.split())
                     if len(fields) != len(self.fieldnames[self.model]): continue
                     self.add_to_fieldsums(fieldsums, fields)
-                    count += 1
-                    if count > 20:
+                    if self.doneaveraging():
                         self.normalize_fieldsums(fieldsums)
                         writer.write(self.dt, fieldsums)
                         fieldsums = [[0 for col in range(2)] for row in range(len(self.fieldnames[self.model]))]
-                        count = 0
             except:
                 print fn
                 raise
 
         if self.dt is not None:
             # remember the most recently found timestamp in a file.
-            lastrx = time.mktime(self.dt)
+            lastrx = time.mktime(self.dt.timetuple()) 
             fn = "timestamp-%s-%s" % (self.model, self.serial)
             open(fn, "w")
             os.utime(fn, (lastrx, lastrx))
@@ -200,8 +288,19 @@ class Datavoltage(Dataparser):
     def parse_first_fn(self, fn):
         """ we have to get the "serial" number from the filename """
         # /home/s8/voltage-2012-10-18.txt.gz
+        # /home/s8/voltage-2013-05-04-13.txt.gz
         self.model = 'voltage'
-        self.serial = fn.split('/')[2] # actually the station name.
+        fnfields = fn.split('/')
+        self.serial = fnfields[2] # actually the station name.
+        dashfields = fnfields[3].split('-')
+        self.YMDH = dashfields[1:4].join("")
+        if len(dashfields) == 5:
+            # either way, YMDH is going to be unique
+            self.YMDH += dashfields[4].split('.')[0]
+
+    def parse_fn(self, fn):
+        # every line in a voltage file has the YMD.
+        pass
 
     def normalize_fieldsums(self, fieldsums):
         """ map the value from an A/D value into a voltage"""
@@ -277,7 +376,6 @@ class Datapdepth1(Dataparser):
         self.hms = fields[0]
         return Dataparser.set_dt_fields(self, fields)
 
-
     def add_to_fieldsums(self, fieldsums, fields):
         # make room for the pbar sum.
         if len(fieldsums) != 5:
@@ -306,31 +404,81 @@ class Datapdepth1(Dataparser):
         fieldsums[2][1] *= 2.54
         fieldsums[0][0] = 0 # ignore first column
 
+class Datappal1(Dataparser):
 
-if __name__ == "__main__":
-    import getopt
+    threshold = 0.00975
+    threshold = 0.0087 # rain period starts with a delta at least this big.
+    threshold = 0.0261
+    loadcal = 10150
 
-    opts, args = getopt.getopt(sys.argv[1:], "su")
-    if ("-s","") in opts:
-        writer = DatawriterSQL()
-    else:
-        writer = DatawriterCSV()
+    def __init__(self):
+        Dataparser.__init__(self)
+        self.minuteperiod = None
+        self.raining = False ### how to carry this over from analysis period to analysis period??
+        self.previous = None
 
-    if ("-u","") in opts:
-        update()
-    elif len(args) == 0: 
-        data = Dataparser()
-    elif args[0] == 'voltage':
-        data = Datavoltage()
-    elif args[0] == 'pdepth':
-        data = Datapdepth()
-    elif args[0] == 'pdepth1':
-        data = Datapdepth1()
-    data.dofiles(writer)
+    def doneaveraging(self):
+        """ average 15 minutes worth of samples. """
+        if False:
+            done = self.minuteperiod is not None and self.dt.minute / 15 != self.minuteperiod
+            self.minuteperiod = self.dt.minute / 15
+        else:
+            done = self.minuteperiod is not None and self.dt.hour != self.minuteperiod
+            self.minuteperiod = self.dt.hour
+        return done
 
-# EOF
+    def normalize_fieldsums(self, fieldsums):
+        # only output deltas if the start of deltas exceeded threshold
+        this = fieldsums[0][1] / fieldsums[0][0] / self.loadcal
+        if self.previous is None: # remember the first (but we should be carrying over from previous)
+            self.previous = this
+            fieldsums[0][0] = 0
+            return
+        delta = this - self.previous
+        self.previous = this
+        if delta > self.threshold:
+            self.raining = True
+        if self.raining and delta > 0:
+            fieldsums[0][1] = delta * 2.54 # convert inches to cm
+        else:
+            self.raining = False
+            fieldsums[0][1] = 0
+        fieldsums[0][0] = 1
+
 
 """
+
+Russ below is the full code, but I'm not sure how much help it will be. I'm using a separate script written in perl to average all of the standard log files into 20 minute averages. Then I'm using a separate matlab script to import the averaged data into matlab. Praw is the raw counts of the averaged data. Prawdate is the corresponding  timestamps to the averaged data. I would like you to use 15 minute averages, and the threshold will now be x=0.0087
+ 
+loadcal=10150;
+firstpraw=praw{1,2}(1)/loadcal;
+for i=1:length(praw{1})%converts counts to inches via calibration and zeros begining
+    praw{1,2}(i)= (praw{1,2}(i)/loadcal)-firstpraw;
+end
+%winter dataset only
+%was praw{1,2}(3527) for winter only
+for i=1965:length(praw{1,2})%brings the second half (after draining) up so that the data is always increasing
+    praw{1,2}(i) = praw{1,2}(i) + (4.6543-0.6603);
+end
+praw{1,2}(5491)=praw{1,2}(5490);%this was an anomoly point due to draining
+for i=5492:length(praw{1,2})%brings the second half (after draining) up so that the data is always increasing
+     praw{1,2}(i) = praw{1,2}(i) + 4.9611;
+end
+delta=zeros(length(praw),1);
+for i=2:length(praw{1,2})%computes a delta array
+        delta(i,1)=(praw{1,2}(i,1)-(praw{1,2}(i-1,1)));
+end
+
+y=1;
+%for x=0.001:.0001:.015
+    x=0.0116;
+firsttime=1;
+precip=zeros(length(praw),1);
+iprecip=zeros(length(praw),1);
+n=1;
+event=zeros(length(praw{1,1}),4);
+firstrain=1;
+
 %Jimmy's Algorithm
 for i=2:length(delta)
     if firsttime
@@ -366,3 +514,39 @@ for i=2:length(delta)
     end
 end
 """ 
+
+if __name__ == "__main__":
+    import getopt
+    import doctest
+
+    opts, args = getopt.getopt(sys.argv[1:], "tpsu")
+    if ("-t","") in opts:
+        doctest.testmod()
+        sys.exit()
+
+    if ("-s","") in opts:
+        writer = DatawriterSQL()
+    elif ("-p","") in opts:
+        writer = DatawriterCSVone()
+    else:
+        writer = DatawriterCSV()
+
+    if ("-u","") in opts:
+        update()
+    elif len(args) == 0: 
+        data = Dataparser()
+    elif args[0] == 'voltage':
+        data = Datavoltage()
+    elif args[0] == 'pdepth':
+        data = Datapdepth()
+    elif args[0] == 'pdepth1':
+        data = Datapdepth1()
+    elif args[0] == 'ppal1':
+        data = Datappal1()
+    data.dofiles(writer)
+    writer.close()
+
+
+# EOF
+
+
