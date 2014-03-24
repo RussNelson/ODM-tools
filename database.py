@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # vim: set ai sw=4 sta fo=croql ts=8 expandtab syntax=python
-                                                                               # die, PEP8's 80-column punched card requirement!
+                                                                                # die, PEP8's 80-column punched card requirement!
 
 
 import time
@@ -54,30 +54,19 @@ class DatawriterSQL(DatawriterCSV):
     """ provide methods for Dataparser to call to write data into a set of streams. """
 
 
-    def __init__(self):
+    def __init__(self, sitecode):
         DatawriterCSV.__init__(self)
         # using: ssh -n -N  -L 3307:localhost:3306 -i /root/.ssh/id_dsa mysqlfwd@www.ra-tes.org
         self.con = MySQLdb.connect(host='127.0.0.1', user='odbinsert', passwd='bn8V9!rL', db='odm', port=3307)
         self.cur = self.con.cursor()
-
-    def model_serial(self, model, serial):
-        """Get the id, name, and county for this model & serial"""
-        for name, sensors in rths_sites:
-            (id, name, county, techno) = name
-            for sensor in sensors:
-                m,s= sensor.split("-")
-                if model == m and serial == s:
-                    return (id, name, county)
-        return None
+        self.sitecode = sitecode
+        self.fieldcolumns = None
 
     def open(self, fields, model, serial, ymdh):
-        model_serial = self.model_serial(model, serial)
-        print model_serial
-        site = model_serial[1].replace(" ", "")
         self.fieldcolumns = []
         for fieldnum,field in enumerate(fields):
             variable = field[1] # rths_sensors
-            self.fieldcolumns.append([site, variable, 0, None])
+            self.fieldcolumns.append([self.sitecode, variable, 0, None])
 
     def write(self, dt, fieldsums):
         for i,fieldcolumn in enumerate(self.fieldcolumns):
@@ -88,6 +77,7 @@ class DatawriterSQL(DatawriterCSV):
                 fieldcolumn[3] = dt
 
     def close(self):
+        if self.fieldcolumns is None: return
         for i,fieldcolumn in enumerate(self.fieldcolumns):
             site, variable, count, dt = fieldcolumn
             if count:
@@ -138,10 +128,6 @@ class Dataparser:
     def __init__(self):
         self.count = 0
         self.minuteperiod = None
-
-    def readfilenames(self, inf):
-        self.files = inf.readlines()
-        self.files.sort( lambda a,b: cmp(a.split('/')[-1], b.split('/')[-1]) )
 
     def parse_first_fn(self, fn):
         """ remember things taken from the first filename """
@@ -203,6 +189,9 @@ class Dataparser:
                 fieldsums[i][0] += 1
 
     def Xdoneaveraging(self):
+        return True
+
+    def Xdoneaveraging(self):
         self.count += 1
         self.count %= 21
         return self.count == 0
@@ -219,30 +208,29 @@ class Dataparser:
             for row in rths_sensors[self.model]
             ]
 
-    def dofiles(self, writer):
-        """ read a list of files, create running averages and split out by sensor."""
-        self.readfilenames(sys.stdin)
+    def dofiles(self, files, writer, rthssi):
+        """ given a list of files, create running averages and split out by sensor."""
+        self.rthssi = rthssi
 
-        lazy_opened = False
+        fn = files[0]
+        self.parse_first_fn(fn)
+        if self.model not in rths_sensors:
+            return # not a model that has been described to us.
+        writer.open(rths_sensors[self.model], self.model, self.serial, self.YMDH)
+        fieldsums = self.zero_fieldsums()
 
         self.dt = None # keep track of the latest timestamp found.
-        fieldsums = []
-        for fn in self.files:
+        for fn in files:
             try:
                 fn = fn.rstrip()
                 self.parse_fn(fn)
-
-                if not lazy_opened:
-                    self.parse_first_fn(fn)
-                    writer.open(rths_sensors[self.model], self.model, self.serial, self.YMDH)
-                    fieldsums = self.zero_fieldsums()
-                    lazy_opened = True
 
                 self.prepare_for(fn)
              
                 for line in gzip.open(fn):
                     fields = line.split()
                     if len(fields) < 2: continue
+                    if fields[0] == "starting": continue
                     fields = self.set_dt_fields(fields)
                     if len(fields) != len(rths_sensors[self.model]): continue
                     self.add_to_fieldsums(fieldsums, fields)
@@ -582,24 +570,53 @@ if __name__ == "__main__":
     import getopt
     import doctest
 
+    inf = csv.reader(open("/var/www/ra-tes.org/RTHS Sensor Inventory - Sheet1.csv"))
+    rthssi = []
+    for row in inf:
+        rthssi.append(row)
+
     opts, args = getopt.getopt(sys.argv[1:], "tpsu")
     if ("-t","") in opts:
         doctest.testmod()
         sys.exit()
 
-    if ("-s","") in opts:
-        writer = DatawriterSQL()
-    elif ("-p","") in opts:
-        writer = DatawriterCSVone()
-    else:
-        writer = DatawriterCSV()
+    # sort the list of filenames by date
+    files = sys.stdin.readlines()
+    files.sort( lambda a,b: cmp(a.split('/')[-1], b.split('/')[-1]) )
+    # change it into an array of sensors
+    filelistlist = []
+    lastmodelserial = None
+    for file in files:
+        fnmain = os.path.splitext(os.path.basename(file))
+        fnfields = fnmain[0].split('-')
+        modelserial = "-".join(fnfields[1:3])
+        if lastmodelserial != modelserial:
+            filelistlist.append([])
+            lastmodelserial = modelserial
+        filelistlist[-1].append(file)
+    for filelist in filelistlist:
 
-    if 'Data'+args[0] in  locals():
-        data = locals()['Data'+args[0]]()
-    else:
-        data = Dataparser()
-    data.dofiles(writer)
-    writer.close()
+        fn = filelist[0]
+        fnmain = os.path.splitext(os.path.basename(fn))
+        fnfields = fnmain[0].split('-')
+        model = fnfields[1].lower() 
+        site = os.path.basename(os.path.dirname(fn))
+        sitecode = open(os.path.join(os.path.dirname(fn), ".sitecode")).read()
+
+        if ("-s","") in opts:
+            writer = DatawriterSQL(sitecode)
+        elif ("-p","") in opts:
+            writer = DatawriterCSVone()
+        else:
+            writer = DatawriterCSV()
+        if 'Data'+model in  locals():
+            data = locals()['Data'+model]()
+        else:
+            data = Dataparser()
+
+        data.dofiles(filelist, writer, rthssi)
+        writer.close()
+        # rename the files here.
 
 
 # EOF
