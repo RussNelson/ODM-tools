@@ -469,7 +469,7 @@ class Datacond(Dataparser):
         Dataparser.__init__(self, rthssi)
         self.calibrations = {}
         for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[5:11]
+            self.calibrations[row[0]+'-'+row[1]] = row[5:]
 
     def Xdoneaveraging(self):
         self.count += 1
@@ -498,6 +498,15 @@ class Datacond(Dataparser):
                     (i == 1 and 65535/4 < fieldsums[i][1] < 65535 * 0.90) or
                     (i == 2)):
                     fieldsums[0][1] = calibration[i*2] * math.exp( calibration[i*2+1] * fieldsums[i][1])
+                    fieldsums[0][0] = 1
+                    break
+            elif calibration[6 + i]:
+                # if we have a better calibration for the linear mapping,
+                # use it, otherwise use the last one.
+                if ((i == 0 and fieldsums[i][1] < 65535 * 0.90) or
+                    (i == 1 and 65535/4 < fieldsums[i][1] < 65535 * 0.90) or
+                    (i == 2)):
+                    fieldsums[0][1] = calibration[6 + i] * (66190.0 / fieldsums[i][1] - 1)
                     fieldsums[0][0] = 1
                     break
         else:
