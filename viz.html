@@ -1,0 +1,99 @@
+<html><head>
+   <meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7; IE=EmulateIE9"> 
+<!--[if IE]><script src="/excanvas_r3/excanvas.js"></script><![endif]-->
+   <meta charset="utf-8" />
+   <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.css" />
+   <!--[if lte IE 8]>
+          <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css" />
+   <![endif]-->
+    <link rel="stylesheet" href="blueprint/screen.css" type="text/css"
+       media="screen, projection">
+    <link rel="stylesheet" href="blueprint/print.css" type="text/css"
+       media="print">
+    <!--[if IE]><link rel="stylesheet" href="blueprint/ie.css" type="text/css"
+       media="screen, projection"><![endif]-->
+   <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
+   <script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+   <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+   <link rel="stylesheet" href="/resources/demos/style.css" />
+   <script>
+   $(function() {
+    $( "#from" ).datepicker({
+      defaultDate: "-2w",
+      changeMonth: true,
+      numberOfMonths: 3,
+      onClose: function( selectedDate ) {
+        $( "#to" ).datepicker( "option", "minDate", selectedDate );
+      }
+    });
+    $( "#to" ).datepicker({
+      defaultDate: "now",
+      changeMonth: true,
+      numberOfMonths: 3,
+      onClose: function( selectedDate ) {
+        $( "#from" ).datepicker( "option", "maxDate", selectedDate );
+      }
+    });
+  });
+  </script>
+  <script type="text/javascript" src="/dygraph-combined.js"></script>
+  <title>Real-Time Hydrologic System</title>
+</head>
+<body>
+<script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
+<div class="container" style="text-align:center; background-color:#d0edf7; ">
+    <a class="site-logo" href="/">
+        <!--[if gte IE 9]><!--><img alt="REON" width="100px" src="REONLogo.svg" onerror="this.src=REONLogo.png;this.onerror=null;" /><!--<![endif]-->
+        <!--[if lt IE 9]><img alt="Acme Supplies" src="REONLogo.png" /><![endif]-->
+    </a>
+    <h1>Real-Time Hydrologic System</h1>
+ <!--dateform--><form submit="">
+<p>(Optional: choose a starting and ending date.)</p>
+<label for="from">From</label>
+<input type="text" id="from" name="from" value="%s"/>
+<label for="to">to</label>
+<input type="text" id="to" name="to" value="%s"/>
+<!--openlist--><ul>
+<!--middle--><li>%s</li>
+<!--graph--><div class="prepend-3" id="rths" style="width:600px; background-color:#d0edf7"></div>
+You can also download this data in <a href="%s">CSV</a> format. All times UTC.
+<script type="text/javascript">
+  g = new Dygraph(
+      document.getElementById("rths"),
+      "%s",
+      { 
+       %s
+       width: '600',
+       title: '%s',
+       ylabel: '%s',
+      }
+  );
+</script>
+<!--closelist--></ul>
+<!--closeform--><br><input type="submit" />
+</form>
+<!--mapintro-->
+   <p>We maintain a system of water quality sensors in <a href="http://en.wikipedia.org/wiki/River">riverine</a> and <a href="http://en.wikipedia.org/wiki/Estuary">estuarine</a> systems.</p>
+    <p>You can pick a site off the map, or <a href="viz.cgi">choose a site by name</a>.</p>
+<!--leaftop-->
+    <div class="append-1 prepend-1" >
+      <div id="map" class="map" style="height: %spx;"></div>
+    </div>
+<script>
+var map = L.map('map').setView(%s);
+L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
+            maxZoom: 18
+}).addTo(map);
+<!--leafpin-->var marker = L.marker([%s, %s]).addTo(map);
+marker.bindPopup("%s");
+<!--leafbottom-->
+</script>
+<!--images-->
+    <div class="append-1 prepend-1">
+    <p><img src="images/IMG_3810.jpg.png" alt="Dutch Apple Cruises" />
+       <img src="images/IMG_0219.jpg.png" alt="North Creek" /></p>
+    </div>
+</div>
+<!--end--></body>
+</html>
