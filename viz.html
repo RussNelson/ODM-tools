@@ -119,6 +119,12 @@ L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
         attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
             maxZoom: 18
 }).addTo(map);
+$( "#map" ).click(function() {
+    //$( "#map" ).effect("size", { to: { height:500 }});
+    $( "#map" ).animate({ height:500 });
+    map.invalidateSize(true);
+    map.setView( map.myMap.getCenter(), map.myMap.getZoom(), true);
+    });
 <!--leafpin-->var marker = L.marker([%s, %s]).addTo(map);
 marker.bindPopup("%s");
 <!--leafbottom-->
