@@ -11,7 +11,7 @@ import csv
 import re
 import fnmatch
 import MySQLdb
-from all import rths_sites, rths_sensors
+from sensors import rths_sites, rths_sensors
 import datetime
 import math
 import pickle
@@ -141,7 +141,12 @@ class DatawriterSQL(DatawriterCSV):
                 ; """ % locals()
             self.cur.execute(sqlcmd)
 
-            (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription]) = self.cur.fetchone()
+            svm= self.cur.fetchone()
+            try:
+                (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription]) = svm
+            except ValueError:
+                print "one of these wasn't found:", SiteCode, VariableCode, MethodDescription
+                raise
         return (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription])
 
     
