@@ -1,8 +1,6 @@
 #!/usr/bin/python
 # vim: set ai sw=4 sta fo=croql ts=8 expandtab syntax=python
                                                                                 # die, PEP8's 80-column punched card requirement!
-
-
 import time
 import sys
 import gzip
@@ -10,17 +8,57 @@ import os
 import csv
 import re
 import fnmatch
-import MySQLdb
-from sensors import rths_sites, rths_sensors
+from sensors import rths_sites, rths_sensors, units
 import datetime
 import math
 import pickle
+try:
+    import MySQLdb
+except:
+    pass
+import json
 
-class DatawriterCSV:
+
+class Datawriter: # base class
     """ provide methods for Dataparser to call to write data into a set of streams. """
-
     def __init__(self):
         pass
+
+    def open(self, fields, model, serial, ymdh):
+        """ Open a set of files, one for each of the fields (unless the filename is None)"""
+        pass
+
+    def write(self, dt, fieldsums):
+        """ write this sample at its date to all fields (unless the output file is None) """
+        pass
+
+    def close(self):
+        pass
+
+class DatawriterView(Datawriter):
+    """ write just the last measurement out. """
+
+    def open(self, fields, model, serial, ymdh):
+        """ Open a set of files, one for each of the fields (unless the filename is None)"""
+        self.fieldvalues = {}
+        for fieldnum,field in enumerate(fields):
+            self.fieldvalues[fieldnum] = [None, None, model, serial, field[1], field[2]]
+
+    def write(self, dt, fieldsums):
+        """ write this sample at its date to all fields (unless the output file is None) """
+        timestamp = dt.strftime("%m/%d/%Y %H:%M:%S")
+        for fieldnum,field in self.fieldvalues.items():
+            if fieldsums[fieldnum][0]:
+                field[0] = timestamp
+                field[1] = fieldsums[fieldnum][1] / fieldsums[fieldnum][0]
+
+    def close(self):
+        for fieldnum,field in self.fieldvalues.items():
+            if field[0] is not None and field[4]:
+                sys.stdout.write("%s,%s,%s,%.3f %s\n" % (field[2], field[3], field[4], field[1], units[int(field[5])]))
+
+class DatawriterCSV(Datawriter):
+    """ provide methods for Dataparser to call to write data into a set of streams. """
 
     def _makefn(self, fn, serial, ymdh):
         """ Construct the destination filename
@@ -47,9 +85,6 @@ class DatawriterCSV:
             if outf and fieldsums[fieldnum][0]:
                 outf.write("%s,%.3f\n" % (timestamp, fieldsums[fieldnum][1] / fieldsums[fieldnum][0]))
 
-    def close(self):
-        pass
-
 class DatawriterCSVone(DatawriterCSV):
     """ like CSV, but one for one hour's worth of data, and passes the date through to the name """
     def _makefn(self, fn, serial, ymdh):
@@ -60,14 +95,14 @@ class DatawriterCSVone(DatawriterCSV):
         """
         return "rths/%s/%s/" % (ymdh[0:4], ymdh[0:6]) + fn + "-%s-%s.csv" % (serial, ymdh)
 
-class DatawriterSQL(DatawriterCSV):
+class DatawriterSQL(Datawriter):
     """ provide methods for Dataparser to call to write data into a set of streams. """
 
-
     def __init__(self, sitecode):
-        DatawriterCSV.__init__(self)
+        Datawriter.__init__(self)
         # using: ssh -n -N  -L 3307:localhost:3306 -i /root/.ssh/id_dsa mysqlfwd@www.ra-tes.org
-        self.con = MySQLdb.connect(host='127.0.0.1', user='root', passwd='drjim1979', db='odm', port=3306)
+        self.config = json.load(open("config.json"))
+        self.con = MySQLdb.connect(**self.config)
         self.cur = self.con.cursor()
         self.sitecode = sitecode
         self.fieldcolumns = None
@@ -186,8 +221,15 @@ class Dataparser:
         >>> data.YMDH
         '2011120423'
         >>> 
+        >>> data.parse_first_fn("/home/r5/log-MBIRDS-3-2011120423")
+        >>> data.model
+        'MBIRDS'
+        >>> data.serial
+        '3'
+        >>> data.YMDH
+        '2011120423'
+        >>> 
         """
-        # log-MBIRDS-3-2011120423.gz
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
         try:
@@ -201,6 +243,9 @@ class Dataparser:
     def parse_fn(self, fn):
         """ pull the year, month, and day out of the filename
         >>> data.parse_fn("/home/r5/log-MBIRDS-3-2011120423.gz")
+        >>> data.YMD
+        '20111204'
+        >>> data.parse_fn("/data/log-MBIRDS-3-2011120423")
         >>> data.YMD
         '20111204'
         >>> 
@@ -396,7 +441,14 @@ class Dataparser:
 
                 self.prepare_for(fn)
              
-                for line in gzip.open(fn):
+                try:
+                    lines = gzip.open(fn).readlines()
+                except IOError, err:
+                    if err[0] != 'Not a gzipped file':
+                        print err
+                        raise
+                    lines = open(fn).readlines()
+                for line in lines:
                     fields = line.split()
                     if len(fields) < 2: continue
                     if fields[0] == "starting": continue
@@ -525,7 +577,13 @@ class Datapdepth1(Dataparser):
         else:
             raise "too many/few pbar_fns: %s %s %s" % ( fn, os.path.dirname(fn), pfn)
         self.pbars = {}
-        for line in gzip.open(os.path.join(root, pbar_fns[0])):
+        pbar_fn = os.path.join(root, pbar_fns[0])
+        try:
+            lines = gzip.open(pbar_fn).readlines()
+        except IOError, err:
+            if err[0] != 'Not a gzipped file': raise
+            lines = open(pbar_fn).readlines()
+        for line in lines:
             fields = line.split()
             if len(fields) != 2: continue
             if fields[1].startswith("reading"): continue
@@ -891,7 +949,7 @@ if __name__ == "__main__":
     for line in csv.reader(open("RTHS Sensor Inventory - Sheet1.csv")):
         rthssi.append(line)
 
-    opts, args = getopt.getopt(sys.argv[1:], "tpsu")
+    opts, args = getopt.getopt(sys.argv[1:], "tpsuv")
     if ("-t","") in opts:
         data = Dataparser(rthssi)
         writercsv = DatawriterCSV()
@@ -935,6 +993,8 @@ if __name__ == "__main__":
             writer = DatawriterSQL(sitecode)
             method = searchfor(fn, ".method-" + modelserial)
             if method: writer.forcemethod(method)
+        elif ("-v","") in opts:
+            writer = DatawriterView()
         elif ("-p","") in opts:
             writer = DatawriterCSVone()
         else:
@@ -946,12 +1006,14 @@ if __name__ == "__main__":
 
         data.dofiles(filelist, writer)
         writer.close()
-        # rename the files here.
+
+        # rename the files here, but only if there's a done folder to move them into.
         for fn in filelist:
             if fn.find("/done") >= 0: continue # already done, must be recapitulating
             fn = fn.rstrip()
             fnfields = os.path.split(fn)
-            fnnew = os.path.join( fnfields[0], "done", fnfields[1])
-            os.rename(fn, fnnew)
+            if os.path.exists(os.path.join( fnfields[0], "done")):
+                fnnew = os.path.join( fnfields[0], "done", fnfields[1])
+                os.rename(fn, fnnew)
 
 # EOF

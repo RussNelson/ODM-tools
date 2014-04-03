@@ -99,6 +99,7 @@ def printgraph( cur, siteid, seriesid, rthsno, fromdate, todate, location=None):
     if location is not None:
         title += " at " + location
 
+    # FIXME force http://dygraphs.com/options.html#valueRange for water temperatures that include freezing.
     if variablecode == 'precip':
         options = "stepPlot: true,"
     elif variablecode == 'winddir':
