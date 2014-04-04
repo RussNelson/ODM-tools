@@ -56,6 +56,8 @@ rths_sites = [(a[0].split(","), a[1].split(",")) for a in [a.split(":") for a in
 #   the units of the parameter,
 #   the sample medium of the parameter (Air or Surface Water),
 #   the database name of the parameter.
+#   insert into variables (VariableCode, VariableName, VariableUnitsID, SampleMedium, ValueType, IsRegular, TimeSupport, TimeUnitsID, DataType, GeneralCategory, NoDataValue) values ('precipdaily', 'Precipitation', 305, 'Precipitation', 'Field Observation', 1, 0, 100, 'Continuous', 'Instrumentation', -999);
+#
 rths_sensors = """
 windair:
     Wind speed,windspeed,119,Air,
@@ -184,5 +186,5 @@ rths_descriptions = dict([ [a[0], a[1]] for a in [c.split(":") for c in rths_des
 
 # select distinct(VariableUnitsID), UnitsAbbreviation from seriescatalog, units where seriescatalog.VariableUnitsID = units.UnitsID;
 units = { 54:"mm", 47:"cm", 168:"V", 199:"mg/l", 309:"pH", 100:"s", 52:"m", 1:"%",2:"deg",90:"mbar",96:"degC",119:"m/s", 192:"uS/cm",
-          221:"NTU", 257:"#", 121:'mm/hr', 378:'A' }
+          221:"NTU", 257:"#", 121:'mm/hr', 378:'A', 305:"mm/day" }
 

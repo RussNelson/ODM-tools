@@ -98,10 +98,10 @@ class DatawriterCSVone(DatawriterCSV):
 class DatawriterSQL(Datawriter):
     """ provide methods for Dataparser to call to write data into a set of streams. """
 
-    def __init__(self, sitecode):
+    def __init__(self, sitecode, config):
         Datawriter.__init__(self)
         # using: ssh -n -N  -L 3307:localhost:3306 -i /root/.ssh/id_dsa mysqlfwd@www.ra-tes.org
-        self.config = json.load(open("config.json"))
+        self.config = config
         self.con = MySQLdb.connect(**self.config)
         self.cur = self.con.cursor()
         self.sitecode = sitecode
@@ -110,7 +110,7 @@ class DatawriterSQL(Datawriter):
         self.VariableID = {}
         self.MethodID = {}
         self.forcemethodname = None
-
+ 
     def forcemethod(self, name):
         self.forcemethodname = name
 
@@ -136,6 +136,9 @@ class DatawriterSQL(Datawriter):
                 self._insert(sitecode, variablecode, methoddescription, dt, fieldsums[i][1] / fieldsums[i][0])
                 fieldcolumn[3] += 1
                 fieldcolumn[4] = dt
+            if variablecode == 'precip' and fieldsums[i][0]:
+                self._add_precip(sitecode, variablecode, methoddescription, dt, fieldsums[i][1] / fieldsums[i][0])
+                
 
     def close(self):
         if self.fieldcolumns is None: return
@@ -201,9 +204,75 @@ class DatawriterSQL(Datawriter):
             VALUES (%(SiteID)ld,'%(ESTtime)s',%(tzoffset)d,'%(UTCtime)s',%(VariableID)ld,
              %(value)f,%(MethodID)ld,1,'nc')
         ; """ % locals()
-
         return self.cur.execute(sqlcmd)
 
+    def _add_precip(self, SiteCode, VariableCode, MethodDescription, dt, value):
+        """ When we add a precip sample, update the affected daily sums"""
+        """ For hour T, we need to sum from 0 to T inclusive, updating T through max(T). """
+
+        SiteID, VariableID1, MethodID1 = self._get_site_variable(SiteCode, VariableCode, MethodDescription)
+        VariableID2, MethodID2 = self._get_site_variable(SiteCode, 'precipdaily', "Daily Accumulation")[1:3]
+
+        UTCtime = dt.isoformat()
+        tzoffset = -5 # DST can go to hell.
+        est = dt + datetime.timedelta(hours=tzoffset)
+        ESTtime = est.isoformat()
+
+        day = dt.date()
+
+        # get the existing values into a dict
+        sqlcmd = """
+            SELECT DateTimeUTC, DataValue
+            FROM datavalues
+            WHERE SiteID = %(SiteID)s
+            AND VariableID = %(VariableID1)s
+            AND MethodID = %(MethodID1)s
+            AND DateTimeUTC between '%(day)s 00:00:00' and '%(day)s 23:59:59'
+            ; """ % locals()
+        self.cur.execute(sqlcmd)
+
+        datavalues = {}
+        for hour, value in self.cur.fetchall():
+            datavalues[hour.hour] = value
+
+        for hour in range(dt.hour, max(datavalues.keys()) + 1):
+            # sum from zero to hour and insert/update.
+            sum = 0.0
+            for h in range(0, hour + 1):
+                if h in datavalues: sum += datavalues[h]
+
+            dailyutc = datetime.datetime(dt.year, dt.month, dt.day, hour, 0, 0)
+            dailyest = dailyutc + datetime.timedelta(hours=tzoffset)
+
+            # see if we have an existing value that we're updating.
+            sqlcmd = """
+                SELECT ValueID
+                FROM datavalues
+                WHERE SiteID = %(SiteID)s
+                AND VariableID = %(VariableID2)s
+                AND MethodID = %(MethodID2)s
+                AND DateTimeUTC = '%(dailyutc)s';
+                ; """ % locals()
+            self.cur.execute(sqlcmd)
+            valueid = self.cur.fetchone()
+
+            if valueid is None:
+                # insert a new record.
+                insert = """INSERT INTO datavalues
+                    (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,
+                        DataValue,MethodID,SourceID,CensorCode)
+                    VALUES (%(SiteID)ld,'%(dailyest)s',%(tzoffset)d,'%(dailyutc)s',%(VariableID2)ld,
+                        %(sum)f,%(MethodID2)ld,1,'nc')
+                    ; """ % locals()
+                print insert
+                self.cur.execute(insert)
+            else:
+                # update an existing record.
+                valueid = valueid[0]
+                update = 'UPDATE datavalues SET DataValue = %(sum)f WHERE ValueID = %(valueid)s;' % locals()
+                print update
+                self.cur.execute(update)
+        
 class Dataparser:
 
     def __init__(self, rthssi):
@@ -608,9 +677,24 @@ class Datapdepth1(Dataparser):
 
     def add_to_fieldsums(self, fieldsums, fields):
         # make room for the pbar sum.
-        if len(fieldsums) != self.pcol + 1:
+        if len(fieldsums) < self.pcol + 1:
             fieldsums.append([0,0])
-        Dataparser.add_to_fieldsums(self, fieldsums, fields[0:self.pcol])
+        """add the fields to the sums."""
+        values = []
+        for i in range(self.pcol):
+            try:
+                value = float(fields[i])
+            except ValueError:
+                values.append([0,0])
+            else:
+                values.append([1, value])
+        # elide out-of-range values.
+        if not 5 < values[1][1] < 1005:
+            values[1][0] = 0
+        for i in range(self.pcol):
+            fieldsums[i][0] += values[i][0]
+            fieldsums[i][1] += values[i][1]
+
         # pull pbar in.
         if self.hms in self.pbars:
             self.last_pbar = self.pbars[self.hms]
@@ -932,6 +1016,21 @@ class Dataobs(Dataparser):
         return fields
 
 def searchfor(fn, filename):
+    """ Read a different filename in the same or the parent folder as fn.
+    >>> fn = os.tempnam()
+    >>> fnt = os.path.join(fn,"t")
+    >>> os.mkdir(fn)
+    >>> open(fnt, "w").write("test")
+    >>> searchfor(fn, "t")
+    >>> searchfor(os.path.join(fn,"a"), "t")
+    'test'
+    >>> searchfor(os.path.join(fn,"a/a"), "t")
+    'test'
+    >>> searchfor(os.path.join(fn,"a/a/a"), "t")
+    >>> os.unlink(fnt)
+    >>> os.rmdir(fn)
+    >>>
+    """
     sitefn = os.path.join(os.path.dirname(fn), filename)
     if os.path.exists(sitefn):
         return open(sitefn).read().rstrip()
@@ -949,7 +1048,7 @@ if __name__ == "__main__":
     for line in csv.reader(open("RTHS Sensor Inventory - Sheet1.csv")):
         rthssi.append(line)
 
-    opts, args = getopt.getopt(sys.argv[1:], "tpsuv")
+    opts, args = getopt.getopt(sys.argv[1:], "c:tpsuv")
     if ("-t","") in opts:
         data = Dataparser(rthssi)
         writercsv = DatawriterCSV()
@@ -989,8 +1088,11 @@ if __name__ == "__main__":
             model = fnfields[1].lower() 
 
         if ("-s","") in opts:
+            config = "config.json"
+            for o,v in opts:
+                if o == '-c': config = v
             sitecode = searchfor(fn, ".sitecode")
-            writer = DatawriterSQL(sitecode)
+            writer = DatawriterSQL(sitecode, json.load(open(config)))
             method = searchfor(fn, ".method-" + modelserial)
             if method: writer.forcemethod(method)
         elif ("-v","") in opts:
@@ -1017,3 +1119,4 @@ if __name__ == "__main__":
                 os.rename(fn, fnnew)
 
 # EOF
+
