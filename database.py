@@ -264,13 +264,11 @@ class DatawriterSQL(Datawriter):
                     VALUES (%(SiteID)ld,'%(dailyest)s',%(tzoffset)d,'%(dailyutc)s',%(VariableID2)ld,
                         %(sum)f,%(MethodID2)ld,1,'nc')
                     ; """ % locals()
-                print insert
                 self.cur.execute(insert)
             else:
                 # update an existing record.
                 valueid = valueid[0]
                 update = 'UPDATE datavalues SET DataValue = %(sum)f WHERE ValueID = %(valueid)s;' % locals()
-                print update
                 self.cur.execute(update)
         
 class Dataparser:
@@ -438,9 +436,9 @@ class Dataparser:
     def get_calibration(self, model, serial, date):
         """ find the right calibration value. Crap out if not found.
         >>> data.get_calibration("pH", "0", datetime.datetime(2013, 7, 31, 0,0,0))
-        ['ph', '0', 'for St. Regis', '', '5/20/2013', '-0.8766', '31.99', '', '', '', '', '', '', '']
+        ['ph', '0', 'for St. Regis', '', '5/20/2013', '-0.8766', '31.99', '', '', '', '', '', '', '', '', '', '']
         >>> data.get_calibration("pH", "0", datetime.datetime(2013, 8, 31, 0,0,0))
-        ['ph', '0', 'Grasse', '', '8/15/2013', '-1.0634', '37.28', '', '', '', '', '', '', '']
+        ['ph', '0', 'Grasse', '', '8/15/2013', '-1.0634', '37.28', '', '', '', '', '', '', '', '', '', '']
         >>> 
         """
         model = model.lower()
@@ -632,21 +630,42 @@ class Datapdepth(Dataparser):
             inches = 0.1328 * fieldsums[0][1] + 1.1033
             fieldsums[0][1] = inches * 2.54
 
+def find_or_in_done(fullfn, fn, tfn):
+    """ look in the same folder of one fn for another fn, or below it in .../done, or return None
+    >>> fn = "/tmp/log-pdepth2-14-2014040100.gz"
+    >>> find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
+    >>> pfn = "/tmp/log-pbar-4-2014040100.gz"
+    >>> donedir = "/tmp/done"
+    >>> pdfn = os.path.join(donedir, os.path.basename(pfn))
+    >>> open(pfn, "w").write('')
+    >>> find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
+    '/tmp/log-pbar-4-2014040100.gz'
+    >>> os.unlink(pfn)
+    >>> os.mkdir(donedir)
+    >>> open(pdfn, "w").write('')
+    >>> find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
+    '/tmp/done/log-pbar-4-2014040100.gz'
+    >>> os.unlink(pdfn)
+    >>> os.rmdir(donedir)
+    """
+    pfn = os.path.basename(fullfn)
+    pfn = re.sub(fn, tfn, pfn)
+    for root, dirnames, filenames in os.walk(os.path.dirname(fullfn)):
+        pbar_fns = fnmatch.filter(filenames, pfn)
+        if len(pbar_fns) == 1:
+            return os.path.join(root, pbar_fns[0])
+    return None
+
 class Datapdepth1(Dataparser):
     """ read the data produced by a pdepth1. We have to pull in pbar data to turn pressure into depth. """
     pcol = 4
 
     def prepare_for(self, fn):
         """ Given a pdepth1 or pdepth2 filename, find the associated pbar file and read it into a dict"""
-        pfn = os.path.basename(fn)
-        pfn = re.sub(r'pdepth[12]-.*-', 'pbar*-*-', pfn)
-        for root, dirnames, filenames in os.walk(os.path.dirname(fn)):
-            pbar_fns = fnmatch.filter(filenames, pfn)
-            if len(pbar_fns) == 1: break
-        else:
-            raise "too many/few pbar_fns: %s %s %s" % ( fn, os.path.dirname(fn), pfn)
+        pbar_fn = find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
+        if pbar_fn is None:
+            raise "too many/few pbar_fns: %s" % fn
         self.pbars = {}
-        pbar_fn = os.path.join(root, pbar_fns[0])
         try:
             lines = gzip.open(pbar_fn).readlines()
         except IOError, err:
@@ -751,13 +770,9 @@ class Datacond(Dataparser):
         for row in self.rthssi:
             self.calibrations[row[0]+'-'+row[1]] = row[5:]
 
-    def Xdoneaveraging(self):
-        self.count += 1
-        self.count %= 5
-        return self.count == 0
-
     def normalize_fieldsums(self, fieldsums):
-        calibration = map(float, self.calibrations[self.model.lower() + '-' + self.serial]) # crap out if it's not there.
+        # crap out if the calibration file has any bad values.
+        calibration = [ float(re.sub(r' *^$', '0', v)) for v in self.calibrations[self.model.lower() + '-' + self.serial]]
         # get the average values
         for i in range(3):
             if fieldsums[i][0] == 0:
@@ -786,7 +801,7 @@ class Datacond(Dataparser):
                 if ((i == 0 and fieldsums[i][1] < 65535 * 0.90) or
                     (i == 1 and 65535/4 < fieldsums[i][1] < 65535 * 0.90) or
                     (i == 2)):
-                    fieldsums[0][1] = calibration[6 + i] * (65535.0 / fieldsums[i][1] - 1)
+                    fieldsums[0][1] = calibration[6 + i] * (65535.0 / fieldsums[i][1] - 1) + calibration[9 + i]
                     fieldsums[0][0] = 1
                     break
         else:
