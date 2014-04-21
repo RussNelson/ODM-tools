@@ -21,7 +21,9 @@ blacklist = "buckettemp boardtemperature cabinettemperature optical-green optica
 
 sitequery = """select SiteID, SiteName  from sites order by SiteName;"""
 varquery = """select SeriesID, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog where SiteID = %s order by VariableName;"""
-varsquery = """select distinct VariableID, VariableName, SampleMedium, MethodDescription from seriescatalog order by VariableName;"""
+seriesquery = """select SeriesID, SiteID, SiteName, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog 
+                 where VariableID = '%s' order by SiteID;"""
+varsquery = """select distinct VariableID, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog order by VariableName;"""
 graphquery = """select BeginDateTimeUTC, EndDateTimeUTC, VariableName, VariableUnitsName, VariableCode, SampleMedium, MethodDescription
                 from seriescatalog where SeriesID = %s;"""
 timequery = """select min(BeginDateTimeUTC), max(EndDateTimeUTC) from seriescatalog where SiteID = %s;"""
@@ -219,7 +221,7 @@ def main():
             )
         print """<input type="hidden" name="state" value="cross"/>"""
         cur.execute(varsquery)
-        for (variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
+        for (variableid, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
             if variablecode not in blacklist:
                 variablename += full_name(samplemedium, methoddescription)
                 print '<br><input type="radio" id="%s" name="variableid" value="%s"/><label for="%s">%s</label>' % (variableid, variableid, variableid, variablename)
@@ -232,16 +234,15 @@ def main():
         todate = form["to"].value
         print "Content-Type: text/html\n"
         print m['begin'] % "Cross-site graphs"
-        cur.execute(sitequery)
+        cur.execute(seriesquery % variableid)
         rthsno = 0
-        for siteid, sitename in cur.fetchall():
-            seriesid = variableid # FIXME
+        for (seriesid, siteid, sitename, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
             printgraph( cur, siteid, seriesid, rthsno, fromdate, todate, sitename)
             rthsno += 1
         print m['end']
 
     elif state == "serieses":
-        # we get called with the site id and one or more variableid's.
+        # we get called with the site id and one or more seriesid's.
         siteid = form['siteid'].value
         (sitename, sitehtml) = getSiteInfo(cur, siteid)
 
