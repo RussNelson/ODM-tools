@@ -740,14 +740,10 @@ class Datapdepth1(Dataparser):
         # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset
         calibration = map(float, self.calibrations[self.model + '-' + self.serial]) # crap out if it's not there.
 
-        if fieldsums[1][1] >= 1005 or fieldsums[1][1] <= 5:
-            # out of range of the high accuracy sensor.
-            fieldsums[1][0] = 0
-
         if calibration[0] == 0 and calibration[1] == 0 and calibration[4] == 0:
             # broken sensor - pretend it got no samples
             fieldsums[1][0] = 0
-    
+
         if calibration[2] == 0 and calibration[3] == 0 and calibration[5] == 0:
             # broken sensor - pretend it got no samples
             fieldsums[2][0] = 0
@@ -757,7 +753,7 @@ class Datapdepth1(Dataparser):
             t = fieldsums[3][1]
             fieldsums[3][1] = fieldsums[4][1]
             fieldsums[4][1] = t
-    
+
         if fieldsums[1][0]:
             baro = fieldsums[self.pcol][1]
             temp = fieldsums[3][1]
@@ -786,7 +782,7 @@ class Datacond(Dataparser):
             self.calibrations[row[0]+'-'+row[1]] = row[5:]
 
     def normalize_fieldsums(self, fieldsums):
-        # crap out if the calibration file has any bad values.
+        # missing values become 0.
         calibration = [ float(re.sub(r' *^$', '0', v)) for v in self.calibrations[self.model.lower() + '-' + self.serial]]
         # get the average values
         for i in range(3):
