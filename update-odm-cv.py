@@ -27,7 +27,7 @@ class ABContentHandler(xml.sax.ContentHandler):
         insert = 'INSERT ignore INTO %s (%s) VALUES (%s);' % (
             tname(self.tn),
             ", ".join(columns),
-            ", ".join(["'%s'" % self.tablerow[k] for k in columns])
+            ", ".join(["'%s'" % self.tablerow[k].replace("'", "\\'") for k in columns])
         )
         print insert.encode('utf-8')
 
@@ -51,17 +51,16 @@ def service(call, name):
 
 # Pure hackery. There MUST be a way to look at the WSDL and call the functions below.
 # I hate SOAP, and it hates me.
+service(c.service.GetCensorCodeCV, 'CensorCodeCV')
+service(c.service.GetDataTypeCV, 'DataTypeCV')
+service(c.service.GetGeneralCategoryCV, 'GeneralCategoryCV')
+service(c.service.GetSampleMediumCV, 'SampleMediumCV')
+service(c.service.GetSampleTypeCV, 'SampleTypeCV')
+service(c.service.GetSiteTypeCV, 'SiteTypeCV')
+service(c.service.GetSpatialReferences, 'SpatialReferences')
+service(c.service.GetSpeciationCV, 'SpeciationCV')
+service(c.service.GetTopicCategoryCV, 'TopicCategoryCV')
+service(c.service.GetUnits, 'Units')
 service(c.service.GetValueTypeCV, 'ValueTypeCV')
 service(c.service.GetVariableNameCV, 'VariableNameCV')
-service(c.service.GetDataTypeCV, 'DataTypeCV')
-service(c.service.GetUnits, 'Units')
-service(c.service.GetSampleMediumCV, 'SampleMediumCV')
 service(c.service.GetVerticalDatumCV, 'VerticalDatumCV')
-service(c.service.GetCensorCodeCV, 'CensorCodeCV')
-service(c.service.GetSampleTypeCV, 'SampleTypeCV')
-service(c.service.GetTopicCategoryCV, 'TopicCategoryCV')
-service(c.service.GetSpeciationCV, 'SpeciationCV')
-service(c.service.GetGeneralCategoryCV, 'GeneralCategoryCV')
-service(c.service.GetSpatialReferences, 'SpatialReferences')
-service(c.service.GetSiteTypeCV, 'SiteTypeCV')
-
