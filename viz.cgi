@@ -270,16 +270,18 @@ def main():
         fromdate = form["from"].value
         todate = form["to"].value
         excel = 'excel' in form
-        if fromdate: fromdate = " and DateTimeUTC >= '%s'" % iso8601(fromdate)
-        if   todate:   todate = " and DateTimeUTC <= '%s 23:59:59'" % iso8601(todate)
-        cur.execute(valuesquery % (form["seriesid"].value, fromdate, todate))
+        if fromdate: fd = " and DateTimeUTC >= '%s'" % iso8601(fromdate)
+        if   todate: td = " and DateTimeUTC <= '%s 23:59:59'" % iso8601(todate)
+        cur.execute(valuesquery % (form["seriesid"].value, fd, td))
         print "Content-Type: text/plain\n"
         print 'UTC Date,"%s"' % form["title"].value
+        if fromdate: print "%s," % iso8601(fromdate)
         for row in cur.fetchall():
             (dt, value) = row
             if not excel:
                 dt = (str(dt).replace(" ", "T") + "Z")
             print "%s,%s" % (dt, value)
+        if todate: print "%s," % iso8601(todate)
 
     else:
         print "Content-Type: text/html\n"
