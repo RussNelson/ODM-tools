@@ -663,9 +663,11 @@ class Datapdepth1(Dataparser):
     def prepare_for(self, fn):
         """ Given a pdepth1 or pdepth2 filename, find the associated pbar file and read it into a dict"""
         pbar_fn = find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
-        if pbar_fn is None:
-            raise "too many/few pbar_fns: %s" % fn
         self.pbars = {}
+        self.last_pbar = None
+        if pbar_fn is None:
+            print "too many/few pbar_fns: %s" % fn
+            return
         try:
             lines = gzip.open(pbar_fn).readlines()
         except IOError, err:
@@ -714,17 +716,20 @@ class Datapdepth1(Dataparser):
             fieldsums[i][0] += values[i][0]
             fieldsums[i][1] += values[i][1]
 
-        # pull pbar in.
+        # pull pbar in. if there is not one to be had, don't output anything.
+        if self.last_pbar is None: return # we shouldn't, but we might.
         if self.hms in self.pbars:
             self.last_pbar = self.pbars[self.hms]
-        pfields = self.last_pbar.split(',')
-        try:
-            b = float(pfields[1])
-        except ValueError:
-            pass
-        else:
-            fieldsums[self.pcol][0] += 1
-            fieldsums[self.pcol][1] += b
+        if self.last_pbar:
+            pfields = self.last_pbar.split(',')
+            if len(pfields) == 2:
+                try:
+                    b = float(pfields[1])
+                except ValueError:
+                    pass
+                else:
+                    fieldsums[self.pcol][0] += 1
+                    fieldsums[self.pcol][1] += b
 
     def normalize_fieldsums(self, fieldsums):
         # normalize
@@ -735,6 +740,10 @@ class Datapdepth1(Dataparser):
         # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset
         calibration = map(float, self.calibrations[self.model + '-' + self.serial]) # crap out if it's not there.
 
+        if fieldsums[1][1] >= 1005 or fieldsums[1][1] <= 5:
+            # out of range of the high accuracy sensor.
+            fieldsums[1][0] = 0
+
         if calibration[0] == 0 and calibration[1] == 0 and calibration[4] == 0:
             # broken sensor - pretend it got no samples
             fieldsums[1][0] = 0
@@ -742,6 +751,12 @@ class Datapdepth1(Dataparser):
         if calibration[2] == 0 and calibration[3] == 0 and calibration[5] == 0:
             # broken sensor - pretend it got no samples
             fieldsums[2][0] = 0
+
+        if self.pcol == 5 and fieldsums[3][0] and fieldsums[4][0] and fieldsums[3][1] > fieldsums[4][1]:
+            # water temperature is always lower than board temperature.
+            t = fieldsums[3][1]
+            fieldsums[3][1] = fieldsums[4][1]
+            fieldsums[4][1] = t
     
         if fieldsums[1][0]:
             baro = fieldsums[self.pcol][1]
