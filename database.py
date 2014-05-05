@@ -551,7 +551,6 @@ class Datadepth(Dataparser):
     def normalize_fieldsums(self, fieldsums):
         """ use centimeters """
         fieldsums[0][1] *= 100.0
-        fieldsums[1][1] *= 100.0
 
 class Datadepth2(Dataparser):
     def normalize_fieldsums(self, fieldsums):
