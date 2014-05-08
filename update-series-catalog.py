@@ -10,6 +10,7 @@ import MySQLdb
 import datetime
 import json
 
+# if your database uses mixed-case names, change this to return tn.
 def tname(tn):
     return tn.lower()
 
@@ -18,7 +19,7 @@ def tname(tn):
 # from the dataValues table and from related tables.
 def db_UpdateSeriesCatalog_All(con, cur):
   
-    result_status = { "inserted": 0, "updated": 0 }
+    result_status = { "inserted": 0, "updated": 0, "deleted": 0}
 
     
     #row =  (1L, 231L, 1L, 1L, 0L)
@@ -38,9 +39,11 @@ def db_UpdateSeriesCatalog_All(con, cur):
         status = db_UpdateSeriesCatalog(con, cur, *row)
         result_status["inserted"] += status["inserted"]
         result_status["updated"] += status["updated"]
+        result_status["deleted"] += status["deleted"]
   
     print "rows inserted: %d" % result_status["inserted"]
     print "rows updated: %d" % result_status["updated"]
+    print "rows deleted: %d" % result_status["deleted"]
 
 
 def db_find_seriesid(cur, siteID, variableID, methodID, sourceID, qcID):
@@ -60,7 +63,7 @@ def db_find_seriesid(cur, siteID, variableID, methodID, sourceID, qcID):
 
 def db_UpdateSeriesCatalog(con, cur, siteID, variableID, methodID, sourceID, qcID):
   
-    status = { "inserted": 0, "updated": 0 }
+    status = { "inserted": 0, "updated": 0, "deleted": 0 }
   
     #check for an existing seriesID
     series_id = db_find_seriesid(cur, siteID, variableID, methodID, sourceID, qcID)
@@ -156,38 +159,13 @@ WHERE dv.SiteID = %(siteID)s
 if __name__ == "__main__":
     import getopt
 
-    if os.path.exists("config.json"):
-        config = json.load(open("config.json"))
-    else:
-        config = {}
-
-    opts, args = getopt.getopt(sys.argv[1:], "wh:d:u:p:", ["write", "host=", "passwd=", "db=", "user="])
-    write = False
+    configfn = "config.json"
+    opts, args = getopt.getopt(sys.argv[1:], "c:", ["config="])
     for n,v in opts:
-        if n == "-h" or n == "--host":
-            config["host"] = v
-        if n == "-p" or n == "--passwd":
-            config["passwd"] = v
-        if n == "-d" or n == "--db":
-            config["db"] = v
-        if n == "-u" or n == "--user":
-            config["user"] = v
-        if n == "-w" or n == "--write":
-            write = True
+        if n == "-c":
+            configfn = v
 
-    if "passwd" not in config:
-        config["passwd"] = getpass.getpass("Password: ")
-    if "host" not in config:
-        config["host"] = raw_input("Host: ")
-    if "db" not in config:
-        config["db"] = raw_input("Database: ")
-    if "user" not in config:
-        config["user"] = raw_input("User: ")
-
-    if write:
-        json.dump(config, open("config.json.new", 'w'))
-        os.rename("config.json", "config.json.old")
-        os.rename("config.json.new", "config.json")
+    config = json.load(open(configfn))
         
     con = MySQLdb.connect(**config)
     cur = con.cursor()

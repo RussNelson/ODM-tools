@@ -16,6 +16,7 @@ from all import rths_sites, rths_sensors
 import datetime
 import math
 import cgi
+import json
 
 blacklist = "buckettemp boardtemperature cabinettemperature optical-green optical-blue reference".split()
 
@@ -125,9 +126,6 @@ def printgraph( cur, siteid, seriesid, rthsno, fromdate, todate, location=None):
 
 def main():
 
-    con = MySQLdb.connect(host='127.0.0.1', user='root', passwd='drjim1979', db='odm', port=3306)
-    cur = con.cursor()
-
     form = cgi.FieldStorage(keep_blank_values = True)
 
     if len(form) == 0 and os.environ['QUERY_STRING']:
@@ -137,6 +135,15 @@ def main():
         state = "sitelist"
     else:
         state = form["state"].value
+
+    if "config" not in form:
+        configfn = "config.json"
+    else:
+        configfn = form["config"].value
+
+    config = json.load(open(configfn))
+    con = MySQLdb.connect(**config)
+    cur = con.cursor()
 
     if state == "sitelist":
         print "Content-Type: text/html\n"
