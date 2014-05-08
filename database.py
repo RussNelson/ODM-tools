@@ -811,7 +811,7 @@ class Datacond(Dataparser):
                 if ((i == 0 and fieldsums[i][1] < 65535 * 0.90) or
                     (i == 1 and 65535/4 < fieldsums[i][1] < 65535 * 0.90) or
                     (i == 2)):
-                    fieldsums[0][1] = calibration[6 + i] * (65535.0 / fieldsums[i][1] - 1) + calibration[9 + i]
+                    fieldsums[0][1] = calibration[6 + i] * (65535.0 / (fieldsums[i][1] - 1)) + calibration[9 + i]
                     fieldsums[0][0] = 1
                     break
         else:
