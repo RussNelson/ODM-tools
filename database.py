@@ -17,6 +17,7 @@ try:
 except:
     pass
 import json
+import paramiko
 
 
 class Datawriter: # base class
@@ -1073,13 +1074,57 @@ if __name__ == "__main__":
     for line in csv.reader(open("RTHS Sensor Inventory - Sheet1.csv")):
         rthssi.append(line)
 
-    opts, args = getopt.getopt(sys.argv[1:], "c:tpsuv")
+    opts, args = getopt.getopt(sys.argv[1:], "c:prstuv")
     if ("-t","") in opts:
         data = Dataparser(rthssi)
         writercsv = DatawriterCSV()
         writercsvone = DatawriterCSVone()
         doctest.testmod()
         sys.exit()
+
+    for o,v in opts:
+      if o == "-r":
+        client = paramiko.SSHClient()
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect('ra-tes.org', 2739, 'pi')
+        si,so,se = client.exec_command("tail --follow /service/logger/log/main/current")
+        parsers = {}
+        pbar = None
+        for line in so:
+            # @40000000534463aa25a08ba4 ttyACM1 ppal1,16,l,22076.16,48.67,12.50
+            fields = line.split()
+            if len(fields) != 3: continue
+            # ppal1,16,l,22076.16,48.67,12.50
+            fields = fields[2].split(",")
+            if len(fields) < 3: continue
+            model = fields.pop(0)
+            serial = fields.pop(0)
+            logtype = fields.pop(0)
+            if model not in rths_sensors: continue
+            if model not in parsers:
+                if 'Data'+model in  locals():
+                    parsers[model] = locals()['Data'+model](rthssi)
+                else:
+                    parsers[model] = Dataparser(rthssi)
+                parsers[model].model = model
+                parsers[model].serial = serial
+                parsers[model].hms = None
+                parsers[model].pbars= {}
+                parsers[model].last_pbar = None
+                
+            fieldsums = parsers[model].zero_fieldsums()
+            parsers[model].add_to_fieldsums(fieldsums, fields)
+            parsers[model].normalize_fieldsums(fieldsums)
+            if model.startswith('pbar'):
+                if 'pdepth1' in parsers:
+                    parsers['pdepth1'].last_pbar = ",".join(fields)
+                if 'pdepth2' in parsers:
+                    parsers['pdepth2'].last_pbar = ",".join(fields)
+
+            for i, s in enumerate(rths_sensors[model]):
+                if fieldsums[i][0]:
+                    print s[1],fieldsums[i][1] / fieldsums[i][0]
 
     # sort the list of filenames by date
     files = sys.stdin.readlines()
