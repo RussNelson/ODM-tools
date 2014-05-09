@@ -100,6 +100,12 @@ pbar1:
 pbar2:
     Temperature,cabinettemperature,96,Other,
     Barometric Pressure,baro,90,Air,
+pbar3:
+    Temperature,cabinettemperature,96,Other,
+    Barometric Pressure,baro,90,Air,
+pbar4:
+    Temperature,cabinettemperature,96,Other,
+    Barometric Pressure,baro,90,Air,
 DEPTH:
     Gage height,depth,47,Surface Water,
 DEPTH2:
@@ -174,6 +180,8 @@ pdepth2:An encapsulated differential pressure sensor measuring water column heig
 pbar:A barometer and temperature gauge (which is inside our electronics enclosure).
 pbar1:A barometer and temperature gauge (which is inside our electronics enclosure).
 pbar2:A barometer and temperature gauge (which is inside our electronics enclosure).
+pbar3:A barometer and temperature gauge (which is inside our electronics enclosure).
+pbar4:A barometer and temperature gauge (which is inside our electronics enclosure).
 DEPTH:An unencapsulated differential pressure sensor measuring water column height.
 DEPTH2:An unencapsulated differential pressure sensor measuring water column height at two resolutions and ranges.
 MBIRDS:An ultrasonic distance measure to the water surface below, an infrared temperature sensor, and an unshielded air temperature sensor.
