@@ -927,6 +927,12 @@ class Datappal(Dataparser):
         Dataparser.dofiles(self, files, writer)
         self.h.dump()
 
+    def set_dt_fields(self, fields):
+        """ return an extra copy of the high accuracy. """
+        retval = Dataparser.set_dt_fields(self, fields)
+        retval.append(retval[0])
+        return retval
+
     def doneaveraging(self):
         """ average one hour worth of samples. """
         if False:
@@ -945,6 +951,8 @@ class Datappal(Dataparser):
         cal = float(self.calibrations[self.model + '-' + self.serial])
         ave = float(fieldsums[0][1]) / fieldsums[0][0]
         this = ave  / cal
+        fieldsums[3][0] = 1;
+        fieldsums[3][1] = this;
         if self.h.previous is None: # remember the first (but we should be carrying over from previous)
             self.h.previous = this
             self.h.dt = self.dt

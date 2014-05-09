@@ -66,16 +66,19 @@ windair:
     Relative Humidity,humidity,1,Air,
 ppal:
     Precipitation,precip,121,Precipitation,
-    Water level,bucketdepth,54,Precipitation,Rain gauge depth
+    Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
     Temperature,buckettemp,96,Precipitation,
+    Water level,bucketdepthdeep,54,Precipitation,Rain gauge detailed depth  
 ppal1:
     Precipitation,precip,121,Precipitation,
-    Water level,bucketdepth,54,Precipitation,Rain gauge depth
+    Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
     Temperature,buckettemp,96,Precipitation,
+    Water level,bucketdepthdeep,54,Precipitation,Rain gauge detailed depth  
 ppal2:
     Precipitation,precip,121,Precipitation,
-    Water level,bucketdepth,54,Precipitation,Rain gauge depth
+    Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
     Temperature,buckettemp,96,Precipitation,
+    Water level,bucketdepthdeep,54,Precipitation,Rain gauge detailed depth  
 pdepth:
     Gage height,highaccuracypressure,47,Surface Water,High accuracy
     Temperature,temperature,96,Surface Water,
