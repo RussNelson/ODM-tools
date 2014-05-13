@@ -403,26 +403,28 @@ class Dataparser:
         >>> 
 
         """
-        self.dt = datetime.datetime(*time.strptime(self.YMD+fields[0], "%Y%m%d%H:%M:%S")[:6])
+        now = datetime.datetime(*time.strptime(self.YMD+fields[0], "%Y%m%d%H:%M:%S")[:6])
         if self.utc:
-            tzoffset = 0; # wasn't that easy?
-        elif self.dt < self.dst2012end: # DST 2012
+            tzoffset = 0 # wasn't that easy?
+        elif now < self.dst2012end: # DST 2012
             tzoffset = -4
-        elif self.dt < self.dst2012endnext: # the last hour of DST 2012
-            if self.dst is None or self.dt > self.dst:
+        elif now < self.dst2012endnext: # the last hour of DST 2012
+            if self.dst is None or now > self.dst:
                 tzoffset = -4
-                self.dst = self.dt # watch for wrap-around
+                self.dst = now # watch for wrap-around
             else:
                 tzoffset = -5
-        elif self.dt < self.dst2013begin: # ST 2012-2013
+        elif now < self.dst2013begin: # ST 2012-2013
             tzoffset = -5
-        elif self.dt < self.dst2013end: # DST 2013
+        elif now < self.dst2013end: # DST 2013
             tzoffset = -4
-        elif self.dt < self.dst2014begin: # ST 2013-2014
+        elif now < self.dst2014begin: # ST 2013-2014
             tzoffset = -5
         else: # DST 2014-2014
             tzoffset = -4
-        self.dt += datetime.timedelta(hours=-tzoffset)
+        now += datetime.timedelta(hours=-tzoffset)
+        if self.dt is not None and now < self.dt: raise ValueError, "time cannot go backwards"
+        self.dt = now
         return fields[1].split(',')
 
     def date_parse(self, dstr):
@@ -952,7 +954,7 @@ class Datappal(Dataparser):
         ave = float(fieldsums[0][1]) / fieldsums[0][0]
         this = ave  / cal
         fieldsums[3][0] = 1;
-        fieldsums[3][1] = this;
+        fieldsums[3][1] = this; # convert inches to mm
         if self.h.previous is None: # remember the first (but we should be carrying over from previous)
             self.h.previous = this
             self.h.dt = self.dt
