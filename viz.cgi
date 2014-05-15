@@ -18,7 +18,7 @@ import math
 import cgi
 import json
 
-blacklist = "buckettemp boardtemperature cabinettemperature optical-green optical-blue reference".split()
+blacklist = "bucketdepthdeep bucketdepth buckettemp boardtemperature cabinettemperature optical-green optical-blue reference".split()
 
 sitequery = """select SiteID, SiteName  from sites order by SiteName;"""
 varquery = """select SeriesID, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog where SiteID = %s order by VariableName;"""
@@ -220,6 +220,7 @@ def main():
         print m['end']
 
     elif state == "crosslist":
+        everything = 'everything' in form
         print "Content-Type: text/html\n"
         print m['begin'] % "Cross-site variables"
         print m['dateform'] % (
@@ -229,7 +230,7 @@ def main():
         print """<input type="hidden" name="state" value="cross"/>"""
         cur.execute(varsquery)
         for (variableid, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
-            if variablecode not in blacklist:
+            if everything or variablecode not in blacklist:
                 variablename += full_name(samplemedium, methoddescription)
                 print '<br><input type="radio" id="%s" name="variableid" value="%s"/><label for="%s">%s</label>' % (variableid, variableid, variableid, variablename)
         print m['closeform']
