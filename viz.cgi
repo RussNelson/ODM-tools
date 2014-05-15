@@ -89,7 +89,7 @@ def parse_date(d, epoch):
 def simpleiso(d):
     return d.isoformat().split("T")[0]
 
-def printgraph( cur, siteid, seriesid, rthsno, fromdate, todate, location=None):
+def printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, location=None):
     cur.execute(graphquery % (seriesid))
     row = cur.fetchone()
     if row is None:
@@ -116,7 +116,8 @@ def printgraph( cur, siteid, seriesid, rthsno, fromdate, todate, location=None):
     if fromdatedt > enddate or todatedt < begindate:
         print "<hr>We have no data for",title,"from",fromdate," to ",todate
     else:
-        url = "?state=graphcsv&siteid=%s&seriesid=%s&from=%s&to=%s&title=%s" % (
+        url = "?config=%s&state=graphcsv&siteid=%s&seriesid=%s&from=%s&to=%s&title=%s" % (
+          configfn,
           siteid,
           seriesid,
           fromdate, 
@@ -153,6 +154,7 @@ def main():
             simpleiso(datetime.datetime.now())
             )
         print """<input type="hidden" name="state" value="site"/>"""
+        print """<input type="hidden" name="config" value="%s"/>""" % configfn
         cur.execute(sitequery)
         for siteid, sitename in cur.fetchall():
             print '<br><input type="radio" id="%s" name="siteid" value="%s"/><label for="%s">%s</label>' % (siteid, siteid, siteid, sitename)
@@ -207,6 +209,7 @@ def main():
         print m['dateform'] % (fromval, toval)
         print """<input type="hidden" name="state" value="serieses"/>"""
         print """<input type="hidden" name="siteid" value="%s"/>""" % siteid
+        print """<input type="hidden" name="config" value="%s"/>""" % configfn
         print m['checkall']
         cur.execute(varquery % siteid)
         sortorder = 0
@@ -228,6 +231,7 @@ def main():
             simpleiso(datetime.datetime.now())
             )
         print """<input type="hidden" name="state" value="cross"/>"""
+        print """<input type="hidden" name="config" value="%s"/>""" % configfn
         cur.execute(varsquery)
         for (variableid, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
             if everything or variablecode not in blacklist:
@@ -245,7 +249,7 @@ def main():
         cur.execute(seriesquery % variableid)
         rthsno = 0
         for (seriesid, siteid, sitename, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
-            printgraph( cur, siteid, seriesid, rthsno, fromdate, todate, sitename)
+            printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, sitename)
             rthsno += 1
         print m['end']
 
@@ -267,7 +271,7 @@ def main():
             fields = series.split("-")
             if len(fields) < 2: continue
             seriesid = fields[1]
-            printgraph( cur, siteid, seriesid, rthsno, fromdate, todate)
+            printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate)
             rthsno += 1
         if rthsno == 0:
             print "But you didn't check any variables!"
