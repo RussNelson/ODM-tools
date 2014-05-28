@@ -30,6 +30,7 @@ rths_sites = """
 20,Indian Lake,Hamilton,r22:pbar2-18,pdepth2-19,pdepth2-15,voltage-r22
 21,Piermont,Rockland,r17:pbar2-16,pdepth2-20,pdepth2-16,windair-35,voltage-r17
 22,RATES Barn,St. Lawrence,r37:voltage-r37
+23,Frankfort,Herkimer,r32:pbar2-25,pdepth2-39,pdepth2-45,ppal1-40,windair-34
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
