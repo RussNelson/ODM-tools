@@ -14,6 +14,7 @@ import fnmatch
 import MySQLdb
 from all import rths_sites, rths_sensors
 import datetime
+import string
 import math
 import cgi
 import json
@@ -23,16 +24,20 @@ blacklist = "bucketdepthdeep bucketdepth buckettemp boardtemperature cabinettemp
 sitequery = """select SiteID, SiteName  from sites order by SiteName;"""
 varquery = """select SeriesID, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog where SiteID = %s order by VariableName;"""
 seriesquery = """select SeriesID, SiteID, SiteName, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog 
-                 where VariableID = '%s' order by SiteID;"""
+                 where VariableID = %s order by SiteID;"""
 varsquery = """select distinct VariableID, VariableCode, VariableName, SampleMedium, MethodDescription from seriescatalog order by VariableName;"""
 graphquery = """select BeginDateTimeUTC, EndDateTimeUTC, VariableName, VariableUnitsName, VariableCode, SampleMedium, MethodDescription
                 from seriescatalog where SeriesID = %s;"""
 timequery = """select min(BeginDateTimeUTC), max(EndDateTimeUTC) from seriescatalog where SiteID = %s;"""
 valuesquery = """select DateTimeUTC, DataValue from datavalues, seriescatalog where
-                 datavalues.SiteID = seriescatalog.SiteID and datavalues.VariableID = seriescatalog.VariableID and datavalues.MethodID = seriescatalog.MethodID and seriescatalog.SeriesID = %s %s %s;"""
+                 datavalues.SiteID = seriescatalog.SiteID and
+                 datavalues.VariableID = seriescatalog.VariableID and
+                 datavalues.MethodID = seriescatalog.MethodID and
+                 seriescatalog.SeriesID = %s""" # missing semicolon on purpose.
 
-# read the HTML template into m. Template has HTML comments where it gets split.
-# the content of the all-lowercase comment is the name of the section.
+# Read the HTML template into m. It contains multiple named sections separated
+# by HTML comments. The content of the HTML comment is the name of the section
+# that follows. Since the first section has no comment, it is named 'begin'
 model = open("viz.html").read()
 sname = 'begin'
 m = {}
@@ -51,8 +56,24 @@ def iso8601(d):
         fields[2] = "20" + fields[2]
     return fields[2] + "-" + fields[0] + "-" + fields[1]
 
+# http://code.activestate.com/recipes/59857-filter-a-string-and-only-keep-a-given-set-of-chara/
+def makefilter(keep):
+    """ Return a functor that takes a string and returns a copy of that
+        string consisting of only the characters in 'keep'.
+    """
+
+    # make a string of all chars, and one of all those NOT in 'keep'
+    allchars = string.maketrans('', '')
+    delchars = ''.join([c for c in allchars if c not in keep])
+
+    # return the functor
+    return lambda s,a=allchars,d=delchars: s.translate(a, d)
+
+identifier = makefilter(string.letters + "." + string.digits)
+date_chars_only = makefilter("-: " + string.digits)
+
 def getSiteInfo(cur, SiteID):
-    cur.execute("Select SiteCode, SiteName, Latitude, Longitude, County from sites where SiteID = %s" % SiteID)
+    cur.execute("Select SiteCode, SiteName, Latitude, Longitude, County from sites where SiteID = %s" , SiteID)
     (sitecode, sitename, lat, lon, county) = cur.fetchone()
     html = ("<p>Site: %s County: %s</p>\n" % (sitename, county)  +
              m['acmemapper'] % (lat, lon) +
@@ -90,7 +111,7 @@ def simpleiso(d):
     return d.isoformat().split("T")[0]
 
 def printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, location=None):
-    cur.execute(graphquery % (seriesid))
+    cur.execute(graphquery, seriesid)
     row = cur.fetchone()
     if row is None:
         print "<hr>We have no data"
@@ -140,7 +161,7 @@ def main():
     if "config" not in form:
         configfn = "config.json"
     else:
-        configfn = form["config"].value
+        configfn = form["config"].value.translate(None, '"/%&\\<>{}[]')
 
     config = json.load(open(configfn))
     con = MySQLdb.connect(**config)
@@ -174,11 +195,11 @@ def main():
         # we get called with either siteid or sitename.
         everything = 'everything' in form
         if "siteid" in form:
-            siteid = form['siteid'].value
+            siteid = identifier(form['siteid'].value)
         else:
             if "sitename" in form:
-                sitename = form["sitename"].value
-            cur.execute("select SiteID from sites where SiteName = '%s'" % sitename)
+                sitename = identifier(form["sitename"].value)
+            cur.execute("select SiteID from sites where SiteName = %s", sitename)
             results = cur.fetchone()
             if results:
                 siteid = results[0]
@@ -195,15 +216,15 @@ def main():
         print m['begin'] % sitename
         print sitehtml
 
-        cur.execute(timequery % (siteid))
+        cur.execute(timequery, siteid)
         (begintime, endtime) = cur.fetchone()
 
         if "from" in form and form["from"].value:
-            fromval = form["from"].value
+            fromval = date_chars_only(iso8601(form["from"].value))
         else:
             fromval = begintime
         if "to" in form and form["to"].value:
-            toval = form["to"].value
+            toval = date_chars_only(iso8601(form["to"].value))
         else:
             toval = endtime
         print m['dateform'] % (fromval, toval)
@@ -211,7 +232,7 @@ def main():
         print """<input type="hidden" name="siteid" value="%s"/>""" % siteid
         print """<input type="hidden" name="config" value="%s"/>""" % configfn
         print m['checkall']
-        cur.execute(varquery % siteid)
+        cur.execute(varquery, siteid)
         sortorder = 0
         for (seriesid, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
             if everything or variablecode not in blacklist:
@@ -246,7 +267,7 @@ def main():
         todate = form["to"].value
         print "Content-Type: text/html\n"
         print m['begin'] % "Cross-site graphs"
-        cur.execute(seriesquery % variableid)
+        cur.execute(seriesquery, variableid)
         rthsno = 0
         for (seriesid, siteid, sitename, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
             printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, sitename)
@@ -282,11 +303,13 @@ def main():
         fromdate = form["from"].value
         todate = form["to"].value
         excel = 'excel' in form
-        if fromdate: fd = " and DateTimeUTC >= '%s'" % iso8601(fromdate)
-        if   todate: td = " and DateTimeUTC <= '%s 23:59:59'" % iso8601(todate)
-        cur.execute(valuesquery % (form["seriesid"].value, fd, td))
+        vq = valuesquery
+        if fromdate: vq += " and DateTimeUTC >= '%s'" % date_chars_only(iso8601(fromdate))
+        if   todate: vq += " and DateTimeUTC <= '%s 23:59:59'" % date_chars_only(iso8601(todate))
+        vq += ';'
+        cur.execute(vq, form["seriesid"].value)
         print "Content-Type: text/plain\n"
-        print 'UTC Date,"%s"' % form["title"].value
+        print 'UTC Date,"%s"' % form["title"].value.translate(None, '"%&\\<>{}[]')
         if fromdate: print "%s," % iso8601(fromdate)
         for row in cur.fetchall():
             (dt, value) = row
