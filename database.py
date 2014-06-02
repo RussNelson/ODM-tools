@@ -183,6 +183,9 @@ class DatawriterSQL(Datawriter):
             svm= self.cur.fetchone()
             try:
                 (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription]) = svm
+            except TypeError:
+                print "one of these wasn't found:", SiteCode, VariableCode, MethodDescription
+                raise
             except ValueError:
                 print "one of these wasn't found:", SiteCode, VariableCode, MethodDescription
                 raise
@@ -713,11 +716,14 @@ class Datapdepth1(Dataparser):
                 values.append([1, value])
         # elide out-of-range values.
         if not 5 < values[1][1] < 1005:
+            values[1][1] = 0
             values[1][0] = 0
-        else:
-            for i in range(self.pcol):
-                fieldsums[i][0] += values[i][0]
-                fieldsums[i][1] += values[i][1]
+        if not 5 < values[2][1] < 1005:
+            values[2][1] = 0
+            values[2][0] = 0
+        for i in range(self.pcol):
+            fieldsums[i][0] += values[i][0]
+            fieldsums[i][1] += values[i][1]
 
         # pull pbar in. if there is not one to be had, don't output anything.
         if self.last_pbar is None: return # we shouldn't, but we might.
