@@ -31,6 +31,8 @@ rths_sites = """
 21,Piermont,Rockland,r17:pbar2-16,pdepth2-20,pdepth2-16,windair-35,voltage-r17
 22,RATES Barn,St. Lawrence,r37:voltage-r37
 23,Frankfort,Herkimer,r32:pbar2-25,pdepth2-39,pdepth2-45,ppal1-40,windair-34
+24,Newcomb,Essex,r18:pbar2-23
+25,Tahawus,Essex,r20:pbar2-20,windair-22
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
