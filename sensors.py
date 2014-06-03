@@ -90,12 +90,14 @@ pdepth1:
     Gage height,highaccuracypressure,47,Surface Water,High accuracy
     Gage height,largerangepressure,47,Surface Water,Large range
     Temperature,temperature,96,Surface Water,
+    Water level,waterlevel,52,Surface Water,
 pdepth2:
     ,,,,
     Gage height,highaccuracypressure,47,Surface Water,High accuracy
     Gage height,largerangepressure,47,Surface Water,Large range
     Temperature,temperature,96,Surface Water,
     Temperature,boardtemperature,96,Other,PCB temperature
+    Water level,waterlevel,52,Surface Water,
 pbar:
     Temperature,cabinettemperature,96,Other,Cabinet temperature
     Barometric Pressure,baro,90,Air,

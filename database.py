@@ -19,7 +19,6 @@ except:
 import json
 import paramiko
 
-
 class Datawriter: # base class
     """ provide methods for Dataparser to call to write data into a set of streams. """
     def __init__(self):
@@ -662,8 +661,12 @@ def find_or_in_done(fullfn, fn, tfn):
     return None
 
 class Datapdepth1(Dataparser):
+    # Have to put in a bit of explanation about our columns. We add on two
+    # columns beyond what the sensor gives us. The first column is the water
+    # level above sea level. The second column is the most recent pbar data.
     """ read the data produced by a pdepth1. We have to pull in pbar data to turn pressure into depth. """
-    pcol = 4
+    pcol = 5
+    levelcol = 4
 
     def prepare_for(self, fn):
         """ Given a pdepth1 or pdepth2 filename, find the associated pbar file and read it into a dict"""
@@ -694,12 +697,14 @@ class Datapdepth1(Dataparser):
         Dataparser.__init__(self, rthssi)
         self.calibrations = {}
         for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[6:12]
+            self.calibrations[row[0]+'-'+row[1]] = row[6:13]
 
     def set_dt_fields(self, fields):
         """ get the datetime, but also remember HMS """
         self.hms = fields[0]
-        return Dataparser.set_dt_fields(self, fields)
+        retval = Dataparser.set_dt_fields(self, fields)
+        retval.append(0) # create an additional column for water level.
+        return retval
 
     def add_to_fieldsums(self, fieldsums, fields):
         # make room for the pbar sum.
@@ -707,7 +712,7 @@ class Datapdepth1(Dataparser):
             fieldsums.append([0,0])
         """add the fields to the sums."""
         values = []
-        for i in range(self.pcol):
+        for i in range(self.levelcol + 1):
             try:
                 value = float(fields[i])
             except ValueError:
@@ -721,7 +726,7 @@ class Datapdepth1(Dataparser):
         if not 5 < values[2][1] < 1005:
             values[2][1] = 0
             values[2][0] = 0
-        for i in range(self.pcol):
+        for i in range(self.levelcol + 1):
             fieldsums[i][0] += values[i][0]
             fieldsums[i][1] += values[i][1]
 
@@ -746,8 +751,8 @@ class Datapdepth1(Dataparser):
             if f[0]:
                 f[1] /= f[0]
                 f[0] = 1
-        # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset
-        calibration = map(float, self.calibrations[self.model + '-' + self.serial]) # crap out if it's not there.
+        # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset, elevation
+        calibration = [ float(re.sub(r' *^$', '0', v)) for v in self.calibrations[self.model.lower() + '-' + self.serial]]
 
         if calibration[0] == 0 and calibration[1] == 0 and calibration[4] == 0:
             # broken sensor - pretend it got no samples
@@ -757,7 +762,7 @@ class Datapdepth1(Dataparser):
             # broken sensor - pretend it got no samples
             fieldsums[2][0] = 0
 
-        if self.pcol == 5 and fieldsums[3][0] and fieldsums[4][0] and fieldsums[3][1] > fieldsums[4][1]:
+        if self.pcol == 6 and fieldsums[3][0] and fieldsums[4][0] and fieldsums[3][1] > fieldsums[4][1]:
             # water temperature is always lower than board temperature.
             t = fieldsums[3][1]
             fieldsums[3][1] = fieldsums[4][1]
@@ -775,9 +780,21 @@ class Datapdepth1(Dataparser):
             fieldsums[2][1] *= 2.54
         fieldsums[0][0] = 0 # ignore first column
 
+        if calibration[6]: # do we have elevation data?
+            if fieldsums[1][0]: # use the most accurate data we have
+                gage = fieldsums[1][1]
+            else:
+                gage = fieldsums[2][1]
+            # convert Survey feet to meters: http://en.wikipedia.org/wiki/Foot_%28unit%29#Survey_foot
+            fieldsums[self.levelcol][1] = calibration[6] * 1200.00 / 3937.0 + gage / 100.0
+            fieldsums[self.levelcol][0] = 1
+        else:
+            fieldsums[self.levelcol][0] = 0 # we have no elevation, so we know not our water level.
+            
 class Datapdepth2(Datapdepth1):
     """ same data format, but we have btemperature in column 4. """
-    pcol = 5
+    levelcol = 5
+    pcol = 6
 
 
 class Datacond(Dataparser):
