@@ -18,6 +18,7 @@ import string
 import math
 import cgi
 import json
+import types
 
 blacklist = "bucketdepthdeep bucketdepth buckettemp boardtemperature cabinettemperature optical-green optical-blue reference".split()
 
@@ -150,8 +151,8 @@ def main():
 
     form = cgi.FieldStorage(keep_blank_values = True)
 
-    if len(form) == 0 and os.environ['QUERY_STRING']:
-        sitename = os.environ['QUERY_STRING'].replace("%20"," ")
+    if "state" not in form and len(form) == 1:
+        sitename = form.keys()[0].replace("%20"," ")
         state = "site"
     elif "state" not in form:
         state = "sitelist"
@@ -184,12 +185,18 @@ def main():
     elif state == "panos":
         print "Content-Type: text/html\n"
         print m['begin'] % "All of our panoramas"
+        names = []
         for root, dirs, files in os.walk('panoramas'):
             del dirs[:] # don't recurse
-            for name in files:
-                fn = "panoramas/%s" % name
-                id = os.path.splitext(name)[0]
-                print m['panorama'] % (id, fn, id)
+            names += files
+        names.sort()
+        for name in names:
+            fn = "panoramas/%s" % name
+            id = os.path.splitext(name)[0]
+            print '<div class="span-1">'
+            print '<div class="rotate">%s</div>' % name.replace(".jpg","")
+            print '</div>'
+            print m['panorama'] % (id, fn, id)
         print m['end']
     elif state == "site":
         # we get called with either siteid or sitename.
@@ -297,7 +304,7 @@ def main():
         if rthsno == 0:
             print "But you didn't check any variables!"
         print m['end']
-         
+
     elif state == "graphcsv":
         # note: this snippet returns CSV, not HTML
         fromdate = form["from"].value
@@ -307,16 +314,23 @@ def main():
         if fromdate: vq += " and DateTimeUTC >= '%s'" % date_chars_only(iso8601(fromdate))
         if   todate: vq += " and DateTimeUTC <= '%s 23:59:59'" % date_chars_only(iso8601(todate))
         vq += ';'
-        cur.execute(vq, form["seriesid"].value)
         print "Content-Type: text/plain\n"
-        print 'UTC Date,"%s"' % form["title"].value.translate(None, '"%&\\<>{}[]')
-        if fromdate: print "%s," % iso8601(fromdate)
-        for row in cur.fetchall():
-            (dt, value) = row
-            if not excel:
-                dt = (str(dt).replace(" ", "T") + "Z")
-            print "%s,%s" % (dt, value)
-        if todate: print "%s," % iso8601(todate)
+        if type(form["seriesid"]) == types.ListType:
+            seriesids = form["seriesid"]
+            titles = form["title"]
+        else:
+            seriesids = [form["seriesid"]]
+            titles = [form["title"]]
+        print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]') for title in titles])
+        if fromdate: print "%sT00:00:00Z%s" % (iso8601(fromdate), "," * len(seriesids))
+        for i, series in enumerate(seriesids):
+            cur.execute(vq, series.value)
+            for row in cur.fetchall():
+                (dt, value) = row
+                if not excel:
+                    dt = (str(dt).replace(" ", "T") + "Z")
+                print "%s,%s%s" % (dt, "," * i, value)
+        if todate: print "%sT23:59:59Z%s" % (iso8601(todate), "," * len(seriesids))
 
     else:
         print "Content-Type: text/html\n"
