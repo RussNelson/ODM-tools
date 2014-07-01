@@ -206,7 +206,7 @@ def main():
         else:
             if "sitename" in form:
                 sitename = identifier(form["sitename"].value)
-            cur.execute("select SiteID from sites where SiteName = %s", sitename)
+            cur.execute("select SiteID from sites where SiteCode = %s", sitename.replace(" ",""))
             results = cur.fetchone()
             if results:
                 siteid = results[0]
@@ -330,7 +330,7 @@ def main():
                 if not excel:
                     dt = (str(dt).replace(" ", "T") + "Z")
                 print "%s,%s%s" % (dt, "," * i, value)
-        if todate: print "%sT23:59:59Z%s" % (iso8601(todate), "," * len(seriesids))
+        if todate: print "%sT23:59:59Z%s" % (iso8601(todate).split()[0], "," * len(seriesids))
 
     else:
         print "Content-Type: text/html\n"
