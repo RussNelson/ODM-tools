@@ -33,6 +33,11 @@ rths_sites = """
 23,Frankfort,Herkimer,r32:pbar2-25,pdepth2-39,pdepth2-45,ppal1-40,windair-34
 24,Newcomb,Essex,r18:pbar2-23
 25,Tahawus,Essex,r20:pbar2-20,windair-22
+26,Esperance,Schoharie,r30:windair-15,pbar2-22,pdepth2-32,pdepth2-74,ppal1-39
+27,Lexington,Greene,r26:windair-30,pbar4-8,pdepth2-50,pdepth2-76,ppal1-28
+28,Germantown,Columbia,r41:
+29,Cedar River,Hamilton,r23:
+30,Whites,Dutchess,r20:
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
@@ -155,8 +160,8 @@ DO3:
     Oxygen%2C dissolved,do,199,Surface Water,galvanic response
 voltage:
     Battery Voltage,batteryvoltage,168,Not Relevant,
-    Current,chargecurrent,378,Not Relevant,Solar Charge
-    Current,loadcurrent,378,Not Relevant,Load
+    Electric Current,chargecurrent,378,Not Relevant,Solar Charge
+    Electric Current,loadcurrent,378,Not Relevant,Load
 optode:
     Oxygen%2C dissolved,do,199,Surface Water,optode
     Oxygen%2C dissolved,dopercent,1,Surface Water,optode
@@ -166,6 +171,46 @@ optode:
     ,,,,
     ,,,,
     ,,,,
+    ,,,,
+    ,,,,
+CDOMMC:
+    ,,,,
+    Colored Dissolved Organic Matter,cdom,206,Surface Water,Optical sensor
+    ,,,,
+    ,,,,
+CHLAMB:
+    ,,,,
+    Chlorophyll a,chlorophyll,206,Surface Water,Optical sensor
+    ,,,,
+    ,,,,
+OBSBMA:
+    ,,,,
+    Turbidity,optical-blue,221,Surface Water,Blue
+    ,,,,
+    ,,,,
+OBSBMD:
+    ,,,,
+    Turbidity,optical-blue,221,Surface Water,Blue
+    ,,,,
+    ,,,,
+OBSGMA:
+    ,,,,
+    Turbidity,optical-green,221,Surface Water,Green
+    ,,,,
+    ,,,,
+OBSGMD:
+    ,,,,
+    Turbidity,optical-green,221,Surface Water,Green
+    ,,,,
+    ,,,,
+OBSRMA:
+    ,,,,
+    Turbidity,optical-red,221,Surface Water,Red
+    ,,,,
+    ,,,,
+OBSRMD:
+    ,,,,
+    Turbidity,optical-red,221,Surface Water,Red
     ,,,,
     ,,,,
 """
