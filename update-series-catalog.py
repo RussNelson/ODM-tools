@@ -162,7 +162,7 @@ if __name__ == "__main__":
     configfn = "config.json"
     opts, args = getopt.getopt(sys.argv[1:], "c:", ["config="])
     for n,v in opts:
-        if n == "-c":
+        if n == "-c" or n == "--config":
             configfn = v
 
     config = json.load(open(configfn))
