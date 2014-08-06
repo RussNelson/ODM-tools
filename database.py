@@ -448,7 +448,7 @@ class Dataparser:
         """
         model = model.lower()
         for line in self.rthssi:
-            if line[0] == model and line[1] == serial:
+            if line[0].lower() == model and line[1] == serial:
                 if line[4] == "":
                     return line
                 dt = self.date_parse(line[4])
@@ -692,13 +692,6 @@ class Datapdepth1(Dataparser):
         if len(ks):
             self.last_pbar = self.pbars[ks[0]]
 
-    def __init__(self, rthssi):
-        """ initialize as usual. Also get calibrations out of Google docs. """
-        Dataparser.__init__(self, rthssi)
-        self.calibrations = {}
-        for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[6:13]
-
     def set_dt_fields(self, fields):
         """ get the datetime, but also remember HMS """
         self.hms = fields[0]
@@ -746,13 +739,14 @@ class Datapdepth1(Dataparser):
                     fieldsums[self.pcol][1] += b
 
     def normalize_fieldsums(self, fieldsums):
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset, elevation
+        calibration = [ float(re.sub(r' *^$', '0', v)) for v in cline[6:13] ]
         # normalize
         for f in fieldsums:
             if f[0]:
                 f[1] /= f[0]
                 f[0] = 1
-        # 5 psi temperature coefficient,5 psi load coefficient,15 psi temperature coefficient,15 psi load coefficient,offset, elevation
-        calibration = [ float(re.sub(r' *^$', '0', v)) for v in self.calibrations[self.model.lower() + '-' + self.serial]]
 
         if calibration[0] == 0 and calibration[1] == 0 and calibration[4] == 0:
             # broken sensor - pretend it got no samples
@@ -800,16 +794,10 @@ class Datapdepth2(Datapdepth1):
 class Datacond(Dataparser):
     """ we come in with three columns, but need to output only one conductivity in uS/cm. """
 
-    def __init__(self, rthssi):
-        """ initialize as usual. Also get calibrations out of Google docs. """
-        Dataparser.__init__(self, rthssi)
-        self.calibrations = {}
-        for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[5:]
-
     def normalize_fieldsums(self, fieldsums):
         # missing values become 0.
-        calibration = [ float(re.sub(r' *^$', '0', v)) for v in self.calibrations[self.model.lower() + '-' + self.serial]]
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = [ float(re.sub(r' *^$', '0', v)) for v in cline[5:]]
         # get the average values
         for i in range(3):
             if fieldsums[i][0] == 0:
@@ -854,8 +842,11 @@ class Datafl3(Dataparser):
             col = [1,5][i]
             if fieldsums[col][0]:
                 fieldsums[col][1] /= fieldsums[0][0]
-                fieldsums[col][1] = calibration[0 + 3 *i] * (fieldsums[col][1] - calibration[2 + 3 *i]) + calibration[1 + 3 *i]
-                fieldsums[col][0] = 1
+                if fieldsums[col][1] < calibration[2 + 3 *i]: # if less than CWO, below detection limit.
+                    fieldsums[col][0] = 0
+                else:
+                    fieldsums[col][1] = calibration[0 + 3 *i] * (fieldsums[col][1] - calibration[2 + 3 *i]) + calibration[1 + 3 *i]
+                    fieldsums[col][0] = 1
 
 class Dataph(Dataparser):
     def normalize_fieldsums(self, fieldsums):
@@ -945,9 +936,6 @@ class Datappal(Dataparser):
         Dataparser.__init__(self, rthssi)
         self.minuteperiod = None
         self.h = None
-        self.calibrations = {}
-        for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[5]
 
     def dofiles(self, files, writer):
         Dataparser.dofiles(self, files, writer)
@@ -970,13 +958,14 @@ class Datappal(Dataparser):
         return done
 
     def normalize_fieldsums(self, fieldsums):
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = map(float, cline[5:7])
         if self.h is None:
             self.h = History(self.model + "-" + self.serial, self.dt)
         if fieldsums[0][0] == 0: return
         # only output deltas if the start of deltas exceeded threshold
-        cal = float(self.calibrations[self.model + '-' + self.serial])
         ave = float(fieldsums[0][1]) / fieldsums[0][0]
-        this = ave  / cal
+        this = ave  / calibration[0]
         fieldsums[3][0] = 1;
         fieldsums[3][1] = this; # convert inches to mm
         if self.h.previous is None: # remember the first (but we should be carrying over from previous)
@@ -1015,7 +1004,6 @@ class Dataoptode(Dataparser):
         To convert from micromolar to mg/L, multiply the micromolar value by 0.032."""
         fieldsums[0][1] *= 0.032
 
-
 class Dataobs(Dataparser):
 
     """07:00:26 0,485820,B,151.03,OBS,8,L,0,485821,R,81.96,271.22,000
@@ -1026,15 +1014,10 @@ class Dataobs(Dataparser):
     07:00:33 0,485828,G,92.20,328.07,000
     """
 
-    def __init__(self, rthssi):
-        Dataparser.__init__(self, rthssi)
-        self.calibrations = {}
-        for row in self.rthssi:
-            self.calibrations[row[0]+'-'+row[1]] = row[5:11]
-
     fields_needing_calibrations = (3, 6, 7)
     def normalize_fieldsums(self, fieldsums):
-        calibration = map(float, self.calibrations[self.model.lower() + '-' + self.serial]) # crap out if it's not there.
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = map(float, cline[5:11])
         for i in range(3):
             f = self.fields_needing_calibrations[i]
             if fieldsums[f][0]:
@@ -1074,6 +1057,49 @@ class Dataobs(Dataparser):
         fields.append(green)
         fields.append(blue)
         return fields
+
+# base class for the LUMIC.
+class Datalumic(Dataparser):
+
+    # mode,serial,counter,signal,reference,error bits
+    # we throw out any data series if any samples have nonzero error bits.
+
+    def normalize_fieldsums(self, fieldsums):
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = [ float(re.sub(r' *^$', '0', v)) for v in cline[5:7] ]
+        if fieldsums[1][0] and fieldsums[2][0]:
+            if fieldsums[3][1] == 0: # zero error bits?
+                fieldsums[1][1] /= fieldsums[1][0]
+                fieldsums[2][1] /= fieldsums[2][0]
+                fieldsums[1][1] = calibration[0] * fieldsums[1][1]  / fieldsums[2][1] + calibration[1]
+                fieldsums[1][0] = 1
+            else:
+                fieldsums[1][0] = 0 # discard errored measurements.
+
+class Datacdommc(Datalumic):
+    pass
+
+class Datachlamb(Datalumic):
+    pass
+
+class Dataobsbma(Datalumic):
+    pass
+
+class Dataobsbmd(Datalumic):
+    pass
+
+class Dataobsgma(Datalumic):
+    pass
+
+class Dataobsgmd(Datalumic):
+    pass
+
+class Dataobsrma(Datalumic):
+    pass
+
+class Dataobsrmd(Datalumic):
+    pass
+
 
 def searchfor(fn, filename):
     """ Read a different filename in the same or the parent folder as fn.
