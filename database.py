@@ -340,6 +340,7 @@ class Dataparser:
         >>> # ---------------------------------------------------------------
         >>> fn = "/home/s11/log-MBIRDS-3-2011120423.gz"
         >>> data.utc = False
+        >>> data.dt = None
         >>> data.parse_fn(fn)
         >>> data.set_dt_fields("23:00:00 5.29,999.00,262".split())
         ['5.29', '999.00', '262']
@@ -363,7 +364,12 @@ class Dataparser:
         >>> data.dt
         datetime.datetime(2012, 11, 4, 4, 59, 58)
         >>> fn = "/home/s21/log-windair-12-2012110401.gz"
+        >>> data.dt = None
         >>> data.parse_fn(fn)
+        >>> data.set_dt_fields("00:59:58 0.00,0.00,19.71,33.02".split())
+        ['0.00', '0.00', '19.71', '33.02']
+        >>> data.dt
+        datetime.datetime(2012, 11, 4, 4, 59, 58)
         >>> data.set_dt_fields("01:00:00 0.00,0.00,19.72,33.01".split())
         ['0.00', '0.00', '19.72', '33.01']
         >>> data.dt
@@ -376,10 +382,6 @@ class Dataparser:
         ['0.00', '0.00', '19.67', '32.98']
         >>> data.dt
         datetime.datetime(2012, 11, 4, 6, 0)
-        >>> data.set_dt_fields("00:59:58 0.00,0.00,19.71,33.02".split())
-        ['0.00', '0.00', '19.71', '33.02']
-        >>> data.dt
-        datetime.datetime(2012, 11, 4, 4, 59, 58)
         >>> data.set_dt_fields("01:59:58 0.00,0.00,19.71,33.02".split())
         ['0.00', '0.00', '19.71', '33.02']
         >>> data.dt
@@ -520,6 +522,7 @@ class Dataparser:
                         print err
                         raise
                     lines = open(fn).readlines()
+                self.dt = None
                 for line in lines:
                     fields = line.split()
                     if len(fields) < 2: continue
@@ -1076,28 +1079,39 @@ class Datalumic(Dataparser):
             else:
                 fieldsums[1][0] = 0 # discard errored measurements.
 
+class Datalumic_accuracy(Datalumic):
+    def dofiles(self, files, writer):
+        writer.forcemethod("High accuracy")
+        Dataparser.dofiles(self, files, writer)
+
+class Datalumic_range(Datalumic):
+    def dofiles(self, files, writer):
+        writer.forcemethod("High range")
+        Dataparser.dofiles(self, files, writer)
+
+ 
 class Datacdommc(Datalumic):
     pass
 
 class Datachlamb(Datalumic):
     pass
 
-class Dataobsbma(Datalumic):
+class Dataobsbma(Datalumic_accuracy):
     pass
 
-class Dataobsbmd(Datalumic):
+class Dataobsbmd(Datalumic_range):
     pass
 
-class Dataobsgma(Datalumic):
+class Dataobsgma(Datalumic_accuracy):
     pass
 
-class Dataobsgmd(Datalumic):
+class Dataobsgmd(Datalumic_range):
     pass
 
-class Dataobsrma(Datalumic):
+class Dataobsrma(Datalumic_accuracy):
     pass
 
-class Dataobsrmd(Datalumic):
+class Dataobsrmd(Datalumic_range):
     pass
 
 
