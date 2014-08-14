@@ -456,6 +456,8 @@ class Dataparser:
                 dt = self.date_parse(line[4])
                 if dt < date: # only if it was calibrated before this measurement.
                     latest = line
+        if 'latest' not in locals():
+            print "unable to get calibration for",model,serial,date
         return latest # if there was none, we raise an exception.
 
     def normalize_fieldsums(self, fieldsums):
@@ -545,7 +547,7 @@ class Dataparser:
             self.normalize_fieldsums(fieldsums)
             writer.write(self.dt, fieldsums)
         except:
-            print files 
+            sys.stderr.write("probably caused by this file:\n%s\n" % files[-1] )
             raise
 
         if self.dt is not None:
@@ -601,6 +603,8 @@ class Datavoltage(Dataparser):
         t = " ".join(fields[1:5])
         then = time.strptime(t, "%b %d %H:%M:%S %Y")
         self.dt = datetime.datetime.fromtimestamp(time.mktime(then))
+        if self.dt is None:
+            raise ValueError, "unparsable date %s,%s" % (then, time.mktime(then))
         # append some extra fields in case we have short columns.
         fields.append("")
         fields.append("")
@@ -647,11 +651,16 @@ def find_or_in_done(fullfn, fn, tfn):
     >>> open(pfn, "w").write('')
     >>> find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
     '/tmp/log-pbar-4-2014040100.gz'
-    >>> os.unlink(pfn)
     >>> os.mkdir(donedir)
+    >>> os.unlink(pfn)
     >>> open(pdfn, "w").write('')
     >>> find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
     '/tmp/done/log-pbar-4-2014040100.gz'
+    >>> pdfn2 = os.path.join(donedir, "log-pbar-5-2014040100.gz")
+    >>> open(pdfn2, "w").write('')
+    >>> find_or_in_done(fn, r'pdepth[12]-.*-', 'pbar*-*-')
+    '/tmp/done/log-pbar-4-2014040100.gz'
+    >>> os.unlink(pdfn2)
     >>> os.unlink(pdfn)
     >>> os.rmdir(donedir)
     """
@@ -659,7 +668,7 @@ def find_or_in_done(fullfn, fn, tfn):
     pfn = re.sub(fn, tfn, pfn)
     for root, dirnames, filenames in os.walk(os.path.dirname(fullfn)):
         pbar_fns = fnmatch.filter(filenames, pfn)
-        if len(pbar_fns) == 1:
+        if len(pbar_fns) >= 1:
             return os.path.join(root, pbar_fns[0])
     return None
 
@@ -853,18 +862,18 @@ class Datafl3(Dataparser):
 
 class Dataph(Dataparser):
     def normalize_fieldsums(self, fieldsums):
-        cline = self.get_calibration(self.model, self.serial, self.dt)
-        calibration = map(float, cline[5:7])
         if fieldsums[0][0]:
+            cline = self.get_calibration(self.model, self.serial, self.dt)
+            calibration = map(float, cline[5:7])
             fieldsums[0][1] /= fieldsums[0][0]
             fieldsums[0][1] = calibration[0] * fieldsums[0][1] + calibration[1]
             fieldsums[0][0] = 1
 
 class Datado3(Dataparser):
     def normalize_fieldsums(self, fieldsums):
-        cline = self.get_calibration(self.model, self.serial, self.dt)
-        calibration = map(float, cline[5:7])
         if fieldsums[0][0]:
+            cline = self.get_calibration(self.model, self.serial, self.dt)
+            calibration = map(float, cline[5:7])
             fieldsums[0][1] /= fieldsums[0][0]
             fieldsums[0][1] = calibration[0] * fieldsums[0][1] + calibration[1]
             fieldsums[0][0] = 1
@@ -1081,12 +1090,12 @@ class Datalumic(Dataparser):
 
 class Datalumic_accuracy(Datalumic):
     def dofiles(self, files, writer):
-        writer.forcemethod("High accuracy")
+        writer.forcemethod("A")
         Dataparser.dofiles(self, files, writer)
 
 class Datalumic_range(Datalumic):
     def dofiles(self, files, writer):
-        writer.forcemethod("High range")
+        writer.forcemethod("D")
         Dataparser.dofiles(self, files, writer)
 
  
