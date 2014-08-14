@@ -181,6 +181,7 @@ def main():
         for siteid, sitename in cur.fetchall():
             print '<br><input type="radio" id="%s" name="siteid" value="%s"/><label for="%s">%s</label>' % (siteid, siteid, siteid, sitename)
         print m['closeform']
+        print m['adcp']
         print m['end']
     elif state == "panos":
         print "Content-Type: text/html\n"
