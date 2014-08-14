@@ -38,6 +38,9 @@ rths_sites = """
 28,Germantown,Columbia,r41:
 29,Cedar River,Hamilton,r23:
 30,Whites,Dutchess,r20:
+31,Stratford,Fulton,r34:
+32,Arietta,Hamilton,r27:
+33,Durham,Greene,r31:
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
@@ -100,7 +103,7 @@ pdepth2:
     ,,,,
     Gage height,highaccuracypressure,47,Surface Water,High accuracy
     Gage height,largerangepressure,47,Surface Water,Large range
-    Temperature,temperature,96,Surface Water,
+    Temperature,temperature,96,Surface Water,Temperature
     Temperature,boardtemperature,96,Other,PCB temperature
     Water level,waterlevel,52,Surface Water,
 pbar:
@@ -134,11 +137,11 @@ COND:
     Electrical conductivity,highcond,192,Surface Water,High range sensor
 fl3:
     ,,,,
-    Chlorophyll a,chlorophyll,206,Surface Water,Optical sensor
+    Chlorophyll a,chlorophyll,205,Surface Water,Optical sensor
     ,,,,
     ,,,,
     ,,,,
-    Colored Dissolved Organic Matter,cdom,206,Surface Water,Optical sensor
+    Colored Dissolved Organic Matter,cdom,205,Surface Water,Optical sensor
     ,,,,
 OBS:
     ,,,,
@@ -175,7 +178,7 @@ optode:
     ,,,,
 CDOMMC:
     ,,,,
-    Colored Dissolved Organic Matter,cdom,206,Surface Water,Optical sensor
+    Colored Dissolved Organic Matter,cdom,205,Surface Water,Optical sensor
     ,,,,
     ,,,,
 CHLAMB:
@@ -247,5 +250,5 @@ rths_descriptions = dict([ [a[0], a[1]] for a in [c.split(":") for c in rths_des
 
 # select distinct(VariableUnitsID), UnitsAbbreviation from seriescatalog, units where seriescatalog.VariableUnitsID = units.UnitsID;
 units = { 54:"mm", 47:"cm", 168:"V", 199:"mg/l", 309:"pH", 100:"s", 52:"m", 1:"%",2:"deg",90:"mbar",96:"degC",119:"m/s", 192:"uS/cm",
-          221:"NTU", 257:"#", 121:'mm/hr', 378:'A', 305:"mm/day" }
+          221:"NTU", 257:"#", 121:'mm/hr', 378:'A', 305:"mm/day", 206:"ppb", 205:"ppm" }
 
