@@ -20,7 +20,7 @@ rths_sites = """
 7,North Creek,Warren,r9:windair-11,voltage-r9,pdepth1-02,pbar1-1,ppal1-06
 8,Russ Lawn,Saint Lawrence,s4:voltage-s4
 9,Old Main back lawn,Saint Lawrence,s6:windair-01,ppal2-0,pbar2-x
-12,Corinth,Saratoga,r1:windair-40,pbar2-08,pdepth1-19,ppal1-08
+12,Corinth,Saratoga,r42:
 14,St. Regis,Saint Lawrence,r4:COND-3,pdepth1-20,pbar2-10,DO-3,ppal1-09,OBS-10,windair-48,pH-3,voltage-r10
 15,Hinckley,Herkimer,r16:pbar2-4,pH-1,windair-41,OBS-9,COND-1,DO-1,ppal1-07,pdepth2-8,fl3-414
 16,Grasse,Saint Lawrence,r11:pH-0,COND-1,DO-1,ppal1-07,pdepth1-18,ppal1-14,windair-01,pbar2-7,voltage-r11
@@ -38,9 +38,15 @@ rths_sites = """
 28,Germantown,Columbia,r41:
 29,Cedar River,Hamilton,r23:
 30,Whites,Dutchess,r20:
-31,Stratford,Fulton,r34:
-32,Arietta,Hamilton,r27:
+31,Powley,Fulton,r34:
+32,Piseco,Hamilton,r27:
 33,Durham,Greene,r31:
+34,Walkill,Ulster,r50:
+35,Rondout,Ulster,r54:
+36,Arietta,Hamilton,r29:
+37,Wells,Hamilton,r18:
+38,Croton,Westchester,r49:
+39,Moreau,Saratoga,r36:
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
