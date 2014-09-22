@@ -43,6 +43,10 @@ class DatawriterView(Datawriter):
         self.fieldvalues = {}
         for fieldnum,field in enumerate(fields):
             self.fieldvalues[fieldnum] = [None, None, model, serial, field[1], field[2]]
+        self.forcemethodname = None
+ 
+    def forcemethod(self, name):
+        self.forcemethodname = name
 
     def write(self, dt, fieldsums):
         """ write this sample at its date to all fields (unless the output file is None) """
@@ -542,13 +546,14 @@ class Dataparser:
             except:
                 sys.stderr.write(fn + "\n")
                 raise
-        # finish off any remaining samples
-        try:
-            self.normalize_fieldsums(fieldsums)
-            writer.write(self.dt, fieldsums)
-        except:
-            sys.stderr.write("probably caused by this file:\n%s\n" % files[-1] )
-            raise
+        # if we have any data, finish off any remaining samples
+        if sum([f[0] for f in fieldsums]):
+            try:
+                self.normalize_fieldsums(fieldsums)
+                writer.write(self.dt, fieldsums)
+            except:
+                sys.stderr.write("probably caused by this file:\n%s\n" % files[-1] )
+                raise
 
         if self.dt is not None:
             # remember the most recently found timestamp in a file.
