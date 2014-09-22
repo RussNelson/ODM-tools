@@ -33,6 +33,11 @@ class Datawriter: # base class
         pass
 
     def close(self):
+        """ close this set of files. """
+        pass
+
+    def finish(self):
+        """ finished adding anything. """
         pass
 
 class DatawriterView(Datawriter):
@@ -114,7 +119,11 @@ class DatawriterSQL(Datawriter):
         self.VariableID = {}
         self.MethodID = {}
         self.forcemethodname = None
+        self.delete = False
  
+    def deleting(self):
+        self.delete = True
+
     def forcemethod(self, name):
         self.forcemethodname = name
 
@@ -132,6 +141,7 @@ class DatawriterSQL(Datawriter):
                 if self.forcemethodname is not None:
                     methoddescription += " " + self.forcemethodname
             self.fieldcolumns.append([self.sitecode, variablecode, methoddescription, 0, None])
+        self.fc = {}
 
     def write(self, dt, fieldsums):
         for i,fieldcolumn in enumerate(self.fieldcolumns):
@@ -143,8 +153,54 @@ class DatawriterSQL(Datawriter):
             if variablecode == 'precip' and fieldsums[i][0]:
                 self._add_precip(sitecode, variablecode, methoddescription, dt, fieldsums[i][1] / fieldsums[i][0])
                 
+    def _insert(self, SiteCode, VariableCode, MethodDescription, dt, value):
+
+        id = (SiteCode, VariableCode, MethodDescription)
+        if id in self.fc:
+            self.fc[id].append( (dt, value) )
+        else:
+            self.fc[id] = [ (dt, value) ]
 
     def close(self):
+
+        for id,dtval in self.fc.items():
+            
+            tzoffset = -5 # DST can go to hell.
+            SiteID, VariableID, MethodID = self._get_site_variable(*id)
+            if self.delete:
+                ddd = ""
+                for v in dtval:
+                    ddd += ",'%s'" % v[0].isoformat()
+                sqlcmd = """DELETE FROM datavalues WHERE 
+                SiteID = %ld AND
+                DateTimeUTC in (%s) AND
+                VariableID = %ld AND
+                MethodID = %ld AND
+                SourceID = 1;""" % (SiteID, ddd[1:], VariableID, MethodID)
+                self.cur.execute(sqlcmd)
+            values = [ (
+                SiteID,
+                (x[0] + datetime.timedelta(hours=tzoffset)).isoformat(),
+                tzoffset,
+                x[0].isoformat(),
+                VariableID,
+                x[1],
+                MethodID
+            ) for x in dtval ]
+
+            vvv = ""
+            for v in values:
+                vvv += ",(%ld,'%s',%d,'%s',%ld,%f,%ld,1,'nc')" % v
+            #values = [ "(%ld,'%s',%d,'%s',%ld,%f,%ld,1,'nc')" % v in values ]
+
+            sqlcmd = """
+                INSERT IGNORE INTO datavalues
+                (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,
+                 DataValue,MethodID,SourceID,CensorCode)
+                VALUES %s
+            ; """ % vvv[1:]
+            self.cur.execute(sqlcmd)
+
         if self.fieldcolumns is None: return
         for i,fieldcolumn in enumerate(self.fieldcolumns):
             site, variable, method, count, dt = fieldcolumn
@@ -195,24 +251,6 @@ class DatawriterSQL(Datawriter):
         return (self.SiteID[SiteCode], self.VariableID[VariableCode], self.MethodID[MethodDescription])
 
     
-    def _insert(self, SiteCode, VariableCode, MethodDescription, dt, value):
-
-        SiteID, VariableID, MethodID = self._get_site_variable(SiteCode, VariableCode, MethodDescription)
-
-        UTCtime = dt.isoformat()
-        tzoffset = -5 # DST can go to hell.
-        dt += datetime.timedelta(hours=tzoffset)
-        ESTtime = dt.isoformat()
-        
-        sqlcmd = """
-            INSERT IGNORE INTO datavalues
-            (SiteID,LocalDateTime,UTCOffset,DateTimeUTC,VariableID,
-             DataValue,MethodID,SourceID,CensorCode)
-            VALUES (%(SiteID)ld,'%(ESTtime)s',%(tzoffset)d,'%(UTCtime)s',%(VariableID)ld,
-             %(value)f,%(MethodID)ld,1,'nc')
-        ; """ % locals()
-        return self.cur.execute(sqlcmd)
-
     def _add_precip(self, SiteCode, VariableCode, MethodDescription, dt, value):
         """ When we add a precip sample, update the affected daily sums"""
         """ For hour T, we need to sum from 0 to T inclusive, updating T through max(T). """
@@ -554,6 +592,7 @@ class Dataparser:
             except:
                 sys.stderr.write("probably caused by this file:\n%s\n" % files[-1] )
                 raise
+        writer.close()
 
         if self.dt is not None:
             # remember the most recently found timestamp in a file.
@@ -1078,20 +1117,21 @@ class Dataobs(Dataparser):
 # base class for the LUMIC.
 class Datalumic(Dataparser):
 
+    def add_to_fieldsums(self, fieldsums, fields):
+        """add the fields to the sums unless the error bits are non-zero"""
+        if fields[3] != "000": return
+        fields = Dataparser.add_to_fieldsums(self, fieldsums, fields)
+
     # mode,serial,counter,signal,reference,error bits
-    # we throw out any data series if any samples have nonzero error bits.
 
     def normalize_fieldsums(self, fieldsums):
         cline = self.get_calibration(self.model, self.serial, self.dt)
         calibration = [ float(re.sub(r' *^$', '0', v)) for v in cline[5:7] ]
         if fieldsums[1][0] and fieldsums[2][0]:
-            if fieldsums[3][1] == 0: # zero error bits?
-                fieldsums[1][1] /= fieldsums[1][0]
-                fieldsums[2][1] /= fieldsums[2][0]
-                fieldsums[1][1] = calibration[0] * fieldsums[1][1]  / fieldsums[2][1] + calibration[1]
-                fieldsums[1][0] = 1
-            else:
-                fieldsums[1][0] = 0 # discard errored measurements.
+            fieldsums[1][1] /= fieldsums[1][0]
+            fieldsums[2][1] /= fieldsums[2][0]
+            fieldsums[1][0] = 1
+            fieldsums[1][1] = calibration[0] * fieldsums[1][1]  / fieldsums[2][1] + calibration[1]
 
 class Datalumic_accuracy(Datalumic):
     def dofiles(self, files, writer):
@@ -1162,7 +1202,7 @@ if __name__ == "__main__":
     for line in csv.reader(open("RTHS Sensor Inventory - Sheet1.csv")):
         rthssi.append(line)
 
-    opts, args = getopt.getopt(sys.argv[1:], "c:prstuv")
+    opts, args = getopt.getopt(sys.argv[1:], "c:prstuvd")
     if ("-t","") in opts:
         data = Dataparser(rthssi)
         writercsv = DatawriterCSV()
@@ -1253,6 +1293,8 @@ if __name__ == "__main__":
             writer = DatawriterSQL(sitecode, json.load(open(config)))
             method = searchfor(fn, ".method-" + modelserial)
             if method: writer.forcemethod(method)
+            if ("-d","") in opts:
+                writer.deleting()
         elif ("-v","") in opts:
             writer = DatawriterView()
         elif ("-p","") in opts:
@@ -1265,7 +1307,7 @@ if __name__ == "__main__":
             data = Dataparser(rthssi)
 
         data.dofiles(filelist, writer)
-        writer.close()
+        writer.finish()
 
         # rename the files here, but only if there's a done folder to move them into.
         for fn in filelist:
