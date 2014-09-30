@@ -280,7 +280,8 @@ class DatawriterSQL(Datawriter):
         for hour, value in self.cur.fetchall():
             datavalues[hour.hour] = value
 
-        for hour in range(dt.hour, max(datavalues.keys()) + 1):
+        if datavalues:
+          for hour in range(dt.hour, max(datavalues.keys()) + 1):
             # sum from zero to hour and insert/update.
             sum = 0.0
             for h in range(0, hour + 1):
@@ -566,7 +567,6 @@ class Dataparser:
                         print err
                         raise
                     lines = open(fn).readlines()
-                self.dt = None
                 for line in lines:
                     fields = line.split()
                     if len(fields) < 2: continue
@@ -1154,19 +1154,28 @@ class Dataobsbma(Datalumic_accuracy):
     pass
 
 class Dataobsbmd(Datalumic_range):
-    pass
+    def add_to_fieldsums(self, fieldsums, fields):
+        """add the fields to the sums unless the error bits are non-zero"""
+        if fields[3] != "000" and fields[3] != "100": return
+        fields = Dataparser.add_to_fieldsums(self, fieldsums, fields)
 
 class Dataobsgma(Datalumic_accuracy):
     pass
 
 class Dataobsgmd(Datalumic_range):
-    pass
+    def add_to_fieldsums(self, fieldsums, fields):
+        """add the fields to the sums unless the error bits are non-zero"""
+        if fields[3] != "000" and fields[3] != "100": return
+        fields = Dataparser.add_to_fieldsums(self, fieldsums, fields)
 
 class Dataobsrma(Datalumic_accuracy):
     pass
 
 class Dataobsrmd(Datalumic_range):
-    pass
+    def add_to_fieldsums(self, fieldsums, fields):
+        """add the fields to the sums unless the error bits are non-zero"""
+        if fields[3] != "000" and fields[3] != "100": return
+        fields = Dataparser.add_to_fieldsums(self, fieldsums, fields)
 
 
 def searchfor(fn, filename):
