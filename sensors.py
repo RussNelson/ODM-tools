@@ -41,12 +41,14 @@ rths_sites = """
 31,Powley,Fulton,r34:
 32,Piseco,Hamilton,r27:
 33,Durham,Greene,r31:
-34,Walkill,Ulster,r50:
+34,Wallkill,Ulster,r50:
 35,Rondout,Ulster,r54:
 36,Arietta,Hamilton,r29:
 37,Wells,Hamilton,r18:
 38,Croton,Westchester,r49:
 39,Moreau,Saratoga,r36:
+40,Herkimer,Herkimer,r48:
+41,Nelliston,Montgomery,r52:
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
