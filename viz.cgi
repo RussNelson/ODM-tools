@@ -312,8 +312,18 @@ def main():
         todate = form["to"].value
         excel = 'excel' in form
         vq = valuesquery
-        if fromdate: vq += " and DateTimeUTC >= '%s'" % date_chars_only(iso8601(fromdate))
-        if   todate: vq += " and DateTimeUTC <= '%s 23:59:59'" % date_chars_only(iso8601(todate))
+        fd = date_chars_only(iso8601(fromdate))
+        if fd.find(" ") < 0:
+            fd += "T00:00:00"
+        else:
+            fd = fd.replace(" ","T")
+        td = date_chars_only(iso8601(todate))
+        if td.find(" ") < 0:
+            td += "T23:59:59"
+        else:
+            td = td.replace(" ","T")
+        if fromdate: vq += " and DateTimeUTC >= '%s'" % fd
+        if   todate: vq += " and DateTimeUTC <= '%s'" % td
         vq += ';'
         print "Content-Type: text/plain\n"
         if type(form["seriesid"]) == types.ListType:
@@ -322,8 +332,8 @@ def main():
         else:
             seriesids = [form["seriesid"]]
             titles = [form["title"]]
-        print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]') for title in titles])
-        if fromdate: print "%sT00:00:00Z%s" % (iso8601(fromdate), "," * len(seriesids))
+        print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]').replace(",","") for title in titles])
+        if fromdate: print "%sZ%s" % (fd, "," * len(seriesids))
         for i, series in enumerate(seriesids):
             cur.execute(vq, series.value)
             for row in cur.fetchall():
@@ -331,7 +341,7 @@ def main():
                 if not excel:
                     dt = (str(dt).replace(" ", "T") + "Z")
                 print "%s,%s%s" % (dt, "," * i, value)
-        if todate: print "%sT23:59:59Z%s" % (iso8601(todate).split()[0], "," * len(seriesids))
+        if todate: print "%sZ%s" % (td, "," * len(seriesids))
 
     else:
         print "Content-Type: text/html\n"
