@@ -10,7 +10,7 @@
 #     the hostname of the computer hosting the sensors.
 # The second half is a comma-separated list of sensor model and serials.
 rths_sites = """
-0,Dutch Apple,Albany,s14:windair-02,DEPTH-1,voltage-s14,ppal-01
+35,Dutch Apple,Albany,s14:windair-02,DEPTH-1,voltage-s14,ppal-01
 1,Beacon,Dutchess,s7:windair-04,ppal1-02
 2,Stillwater,Saratoga,s8:windair-10,voltage-s8,pdepth2-2,pbar2-3,ppal1-03
 3,Freemans Bridge,Schenectady,s10:windair-05,pdepth-01,ppal1-01
@@ -42,13 +42,17 @@ rths_sites = """
 32,Piseco,Hamilton,r27:
 33,Durham,Greene,r31:
 34,Wallkill,Ulster,r50:
-35,Rondout,Ulster,r54:
 36,Arietta,Hamilton,r29:
 37,Wells,Hamilton,r18:
 38,Croton,Westchester,r49:
 39,Moreau,Saratoga,r36:
 40,Herkimer,Herkimer,r48:
 41,Nelliston,Montgomery,r52:
+42,Athens,Greene,r51:
+43,Glasco,Ulster,r33:
+44,Ulster,Ulster,r47:
+45,Luzerne,Warren,r28:
+46,Rondout,Ulster,r54:
 """
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
