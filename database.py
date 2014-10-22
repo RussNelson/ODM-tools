@@ -995,7 +995,8 @@ class Datappal(Dataparser):
 
     def dofiles(self, files, writer):
         Dataparser.dofiles(self, files, writer)
-        self.h.dump()
+        if self.h is not None:
+            self.h.dump()
 
     def set_dt_fields(self, fields):
         """ return an extra copy of the high accuracy. """
