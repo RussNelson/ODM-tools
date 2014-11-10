@@ -1042,6 +1042,9 @@ class Datappal(Dataparser):
             fieldsums[0][1] = 0
         fieldsums[0][0] = 1
 
+class Datappaltest(Dataparser):
+    """ water temperature and 16-bit depth """
+
 class Datappal1(Datappal):
     """ same data format """
 

@@ -102,6 +102,10 @@ ppal2:
     Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
     Temperature,buckettemp,96,Precipitation,
     Water level,bucketdepthdeep,54,Precipitation,Rain gauge detailed depth  
+ppaltest:
+    ,,,,
+    Temperature,buckettemp,96,Precipitation,
+    Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
 pdepth:
     Gage height,highaccuracypressure,47,Surface Water,High accuracy
     Temperature,temperature,96,Surface Water,
