@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # vim: set ai sw=4 sta et fo=croql
 
 # The structure of this data is: one site per line.
@@ -10,18 +9,17 @@
 #     the hostname of the computer hosting the sensors.
 # The second half is a comma-separated list of sensor model and serials.
 rths_sites = """
-35,Dutch Apple,Albany,s14:windair-02,DEPTH-1,voltage-s14,ppal-01
-1,Beacon,Dutchess,s7:windair-04,ppal1-02
-2,Stillwater,Saratoga,s8:windair-10,voltage-s8,pdepth2-2,pbar2-3,ppal1-03
+35,Dutch Apple,Albany,r63:windair-02,DEPTH-1,ppal-01
+1,Beacon,Dutchess,r64:windair-04,ppal1-02
+2,Stillwater,Saratoga,r55:pbar4-20,ppal1-29,pdepth2-2,windair-40
 3,Freemans Bridge,Schenectady,s10:windair-05,pdepth-01,ppal1-01
-4,Old Main test,Saint Lawrence,r17:pbar2-16,pH-10,windair-35,COND-10,DO2-10,voltage-r17,pdepth2-19
-5,West Point,Orange,s17:pdepth2-4,pbar-02
-6,Newburgh,Orange,s25:pdepth1-14,pbar-04
+4,Old Main test,Saint Lawrence,r17:
+5,West Point,Orange,s17:
+6,Newburgh,Orange,r39:pdepth1-14,pbar-04
 7,North Creek,Warren,r9:windair-11,voltage-r9,pdepth1-02,pbar1-1,ppal1-06
-8,Russ Lawn,Saint Lawrence,s4:voltage-s4
-9,Old Main back lawn,Saint Lawrence,s6:windair-01,ppal2-0,pbar2-x
-12,Corinth,Saratoga,r42:
-14,St. Regis,Saint Lawrence,r4:COND-3,pdepth1-20,pbar2-10,DO-3,ppal1-09,OBS-10,windair-48,pH-3,voltage-r10
+9,Old Main back lawn,Saint Lawrence,r5:windair-01,ppal2-0
+12,Corinth,Saratoga,r42:pdepth1-19,windair-42,ppal1-08,pbar4-4
+14,St. Regis,Saint Lawrence,r4:pdepth1-20,pbar2-10,ppal1-09,windair-48,voltage-r10
 15,Hinckley,Herkimer,r16:pbar2-4,pH-1,windair-41,OBS-9,COND-1,DO-1,ppal1-07,pdepth2-8,fl3-414
 16,Grasse,Saint Lawrence,r11:pH-0,COND-1,DO-1,ppal1-07,pdepth1-18,ppal1-14,windair-01,pbar2-7,voltage-r11
 17,Racquette,Saint Lawrence,r7:COND-1,ppal1-15,DO-1,pH-1,pbar2-5,windair-18,pdepth2-3,voltage-r7
@@ -53,7 +51,12 @@ rths_sites = """
 44,Ulster,Ulster,r47:
 45,Luzerne,Warren,r28:
 46,Rondout,Ulster,r54:
+47,Poland,Herkimer,r43:
+48,Haverstraw,Westchester,r57:
+49,Schuylerville,Saratoga,r40:
+50,Normanskill,Albany,r29:
 """
+#8,Russ Lawn,Saint Lawrence,s4:voltage-s4
 #13,St. Regis,Saint Lawrence,r1:windair-40,pbar2-8,pdepth1-19
 #11,St. Regis,Saint Lawrence,r4:COND-0,pdepth1-20,pbar2-01,DO-0,ppal1-09,OBS-8,windair-23,pH-0
 
