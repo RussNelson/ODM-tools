@@ -195,7 +195,7 @@ def main():
             fn = "panoramas/%s" % name
             id = os.path.splitext(name)[0]
             print '<div class="span-1">'
-            print '<div class="rotate">%s</div>' % name.replace(".jpg","")
+            print '<div class="rotate"><a href="viz.cgi?%s">%s</a></div>' % (name.replace(".jpg",""), name.replace(".jpg",""))
             print '</div>'
             print m['panorama'] % (id, fn, id)
         print m['end']
