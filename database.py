@@ -618,7 +618,11 @@ class Datadepth2(Dataparser):
         fieldsums[1][1] *= 100.0
 
 class Datavoltage(Dataparser):
-    """ read the battery voltage data. For historical reasons it's not in exactly the same file format. """
+    """ read the battery voltage data. For historical reasons it's not in
+    exactly the same file format.  If the sensor's home directory contains
+    .grid, ignore the voltage data. Some sensors, both technologics and
+    raspberry Pi, will upload bogus voltage data even if they're on the grid.
+    """
 
     def parse_first_fn(self, fn):
         """ we have to get the "serial" number from the filename """
@@ -627,6 +631,8 @@ class Datavoltage(Dataparser):
         self.model = 'voltage'
         fnfields = fn.split('/')
         self.serial = fnfields[2] # actually the station name.
+        fn = os.path.join("/", fnfields[1], fnfields[2], ".grid")
+        self.ignore = os.path.exists(fn)
         dashfields = fnfields[3].split('-')
         self.YMDH = "".join(dashfields[1:4])
         if len(dashfields) == 5:
@@ -638,6 +644,8 @@ class Datavoltage(Dataparser):
         pass
 
     def normalize_fieldsums(self, fieldsums):
+        if self.ignore:
+            fieldsums[0][0] = 0
         if fieldsums[0][0]:
             if fieldsums[0][1] / fieldsums[0][0] < 3:
                 # map the value from an A/D value into a voltage
