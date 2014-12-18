@@ -277,7 +277,9 @@ def main():
         print m['begin'] % "Cross-site graphs"
         cur.execute(seriesquery, variableid)
         rthsno = 0
-        for (seriesid, siteid, sitename, variablecode, variablename, samplemedium, methoddescription) in cur.fetchall():
+        allsites = list(cur.fetchall())
+        allsites.sort( lambda a,b: cmp(a[2], b[2]) )
+        for (seriesid, siteid, sitename, variablecode, variablename, samplemedium, methoddescription) in allsites:
             printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, sitename)
             rthsno += 1
         print m['end']
