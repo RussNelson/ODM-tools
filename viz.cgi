@@ -146,6 +146,7 @@ def printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, locat
           todate,
           title)
         print m['graph'] % (rthsno, url, url+"&excel=yes", rthsno, url, options, title, ylabel)
+    return title
 
 def main():
 
@@ -298,14 +299,18 @@ def main():
         todate = form["to"].value
         serieses = form.keys()
         serieses.sort( lambda a,b: cmp(form[a], form[b]) )
+        seriesids = []
         for series in serieses:
             fields = series.split("-")
             if len(fields) < 2: continue
             seriesid = fields[1]
-            printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate)
+            seriesids.append( (seriesid, printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate)) )
             rthsno += 1
         if rthsno == 0:
             print "But you didn't check any variables!"
+        series = [ "seriesid=%s&title=%s" % s for s in seriesids ]
+        url = "?state=graphcsv&config=%s&siteid=%s&from=%s&to=%s&%s" % (configfn, siteid, fromdate, todate, "&".join(series))
+        print """<hr>Everything in one <a href="%s">standard CSV</a> or <a href="%s">Excel CSV</a> file""" % (url, url+ "&excel=yes")
         print m['end']
 
     elif state == "graphcsv":
