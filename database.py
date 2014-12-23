@@ -908,7 +908,7 @@ class Datafl3(Dataparser):
             col = [1,5][i]
             if fieldsums[col][0]:
                 fieldsums[col][1] /= fieldsums[0][0]
-                if fieldsums[col][1] < calibration[2 + 3 *i]: # if less than CWO, below detection limit.
+                if False and fieldsums[col][1] < calibration[2 + 3 *i]: # if less than CWO, below detection limit.
                     fieldsums[col][0] = 0
                 else:
                     fieldsums[col][1] = calibration[0 + 3 *i] * (fieldsums[col][1] - calibration[2 + 3 *i]) + calibration[1 + 3 *i]

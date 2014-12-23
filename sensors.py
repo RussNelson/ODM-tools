@@ -156,11 +156,11 @@ COND:
     Electrical conductivity,highcond,192,Surface Water,High range sensor
 fl3:
     ,,,,
-    Chlorophyll a,chlorophyll,205,Surface Water,Optical sensor
+    Chlorophyll a,chlorophyllm,199,Surface Water,Optical sensor
     ,,,,
     ,,,,
     ,,,,
-    Colored Dissolved Organic Matter,cdom,205,Surface Water,Optical sensor
+    Colored Dissolved Organic Matter,cdomm,199,Surface Water,Optical sensor
     ,,,,
 OBS:
     ,,,,
