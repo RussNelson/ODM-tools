@@ -2,7 +2,20 @@
 
 import math
 
-import os, sys, re, time, math, pwd, glob, pickle
+from stat import *
+import os, sys, re, time, math, pwd, glob, pickle, stat, webcolors
+
+from sensors import rths_sites
+
+orange = (255, 100, 0)
+orange = webcolors.name_to_rgb("orange")
+red = webcolors.name_to_rgb("red")
+palered = (255, 100, 100)
+palered = webcolors.name_to_rgb("pink")
+aqua = webcolors.name_to_rgb("cyan")
+yellow = webcolors.name_to_rgb("yellow")
+green = webcolors.name_to_rgb("green")
+black = webcolors.name_to_rgb("black")
 
 downhosts = [("2627", "B1", 5),
          ("2628", "B2", 5),
@@ -78,6 +91,24 @@ def main():
         if fields[0] == 'btime':
             btime = int(fields[1])
 
+    # check to see 
+    out_of_date = {}
+    for name, sensors in rths_sites:
+        (id, name, county, rpi_name) = name
+        for sensor in sensors:
+            if not sensor: continue
+            try:
+                ftime = os.stat("timestamp-%s" % (sensor))[ST_MTIME]
+            except OSError, err:
+                if err[0] == 2: continue
+                raise
+            # if older than two hours ago
+            oldness = 3 * 60 * 60
+            if ftime < time.time() - oldness:
+                #out_of_date[sensor] = ftime
+                out_of_date[name] = out_of_date.get(name, 0) + 1
+                #print 'The',sensor,'at',name,'is out of date by %s seconds' % (time.time() - ftime)
+
     # set up a mapping from uid to username
     uid2user = {}
     homes = {}
@@ -123,24 +154,19 @@ def main():
 	deployed = hostmap.get(host, "")
         latereduce = max(0, int((math.log(lateness) - 4) * 9))
         if port in ports:
-            g = 127 # green
+            r, g, b = green
             if lateness > upload * 60:
-                r = 127 # yellow
+                r, g, b = yellow
         elif "test" in deployed:
-            g = 127 # aqua
-            b = 127
+            r, g, b = aqua
         elif deployed:
-            r = 127 # bright red
+            r, g, b = red
             if lateness < upload * 60:
-                r = 127 # pale red
-                g = 50
-                b = 50
+                r, g, b = palered
                 if os.path.exists("/home/%s/.satellite" % host):
-                    r = 127 # orange
-                    g = 50
-                    b = 0
+                    r, g, b = orange
 	else:
-	    pass # doesn't exist
+            r, g, b = black
         sitefn = "/home/%s/.sitecode" % host
         if os.path.exists(sitefn):
             site = open(sitefn).read().rstrip()
@@ -151,11 +177,11 @@ def main():
         values.sort(lambda a,b:cmp(a[4], b[4] ))
         print "Content-Type: application/json\n"
         print '{"data":['
-        print ",".join(['["%s", "%s", "%02x%02x%02x"]' % (host, site, r*2, g*2, b*2) for r,g,b,host,site in values])
-        #print ",".join(['["%s", "%02x%02x%02x"]' % (site, r, g, b) for r,g,b,host,site in values])
+        print ",".join(['["%s", "%s", "%02x%02x%02x"]' % (host, site, r, g, b) for r,g,b,host,site in values])
         print ']}'
     else:
         for r,g,b,host,site in values:
-            print r, g, b, host, site
+            print r / 2, g / 2, b / 2, host, site
 
 main()
+
