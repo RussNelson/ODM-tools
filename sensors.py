@@ -9,7 +9,7 @@
 #     the hostname of the computer hosting the sensors.
 # The second half is a comma-separated list of sensor model and serials.
 rths_sites = """
-35,Dutch Apple,Albany,r63:windair-02,DEPTH-1,ppal-01
+35,Dutch Apple,Albany,r63:windair-32,DEPTH-1,ppal-01
 1,Beacon,Dutchess,r64:windair-04,ppal1-02
 2,Stillwater,Saratoga,r55:pbar4-20,ppal1-29,pdepth2-2,windair-40
 3,Freemans Bridge,Schenectady,s10:windair-05,pdepth-01,ppal1-01
