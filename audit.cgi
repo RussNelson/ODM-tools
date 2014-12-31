@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, sys, re, time, math, pwd, glob, datetime
+import os, sys, re, time, math, pwd, glob, datetime, cgi
 
 modelbody = """Content-Type: text/html
 
@@ -38,8 +38,11 @@ def dhms(interval):
     return interval
 
 def main():
+    form = cgi.FieldStorage(keep_blank_values = True)
+    sensorfile = "sensorfile" in form
+
     model = modelbody.split('|')
-    sys.stdout.write(model[0])
+    if not sensorfile: sys.stdout.write(model[0])
 
     sites = []
     for homedir in glob.glob("/user/*"):
@@ -53,7 +56,10 @@ def main():
 
     for sitecode, homedir in sites:
         host = homedir.split("/")[-1]
-        sys.stdout.write(model[1] % ("black", sitecode, host, "", "", ""))
+        if sensorfile:
+            pass
+        else:
+            sys.stdout.write(model[1] % ("black", sitecode, host, "", "", ""))
 	# we construct a data structure which is a hash of arrays of filenames.
         logfiles = {}
         for file in dirwalk(homedir):
@@ -70,15 +76,16 @@ def main():
             firstfound = re.search(r'log-(.*?-.*?)-(\d+)', k[0])
             lastfound = re.search(r'log-(.*?-.*?)-(\d+)', k[-1])
             lastdate = lastfound.group(2)
-            if False and lastdate != '0':
+            if lastdate != '0':
                 dt = datetime.datetime(*time.strptime(lastdate, "%Y%m%d%H")[:4])
-                #print k[-1], dt, (datetime.datetime.now() - dt).seconds
-                if (datetime.datetime.now() - dt).seconds < 2*60*60 + 1:
+                if (datetime.datetime.now() - dt).total_seconds() < 2*60*60 + 1:
                     lastdate = '<font color="green">%s</font>' % lastdate
-            sensors.append (model[1] % ("black", "", "", lastfound.group(1), firstfound.group(2), lastdate) )
+            sensors.append ((lastfound.group(1), firstfound.group(2), lastdate))
+
+        sensors = [ model[1] % ("black", "", "", l, f, d) for l, f, d in sensors ]
         sensors.sort()
         for sensor in sensors:
             sys.stdout.write(sensor)
-    sys.stdout.write(model[2])
+    if not sensors: sys.stdout.write(model[2])
 
 main()
