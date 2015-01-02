@@ -7,11 +7,9 @@ import os, sys, re, time, math, pwd, glob, pickle, stat, webcolors
 
 from sensors import rths_sites
 
-orange = (255, 100, 0)
-orange = webcolors.name_to_rgb("orange")
+orange = webcolors.name_to_rgb("limegreen")
 red = webcolors.name_to_rgb("red")
-palered = (255, 100, 100)
-palered = webcolors.name_to_rgb("pink")
+palered = webcolors.name_to_rgb("plum")
 aqua = webcolors.name_to_rgb("cyan")
 yellow = webcolors.name_to_rgb("yellow")
 green = webcolors.name_to_rgb("green")
@@ -173,6 +171,12 @@ def main():
         else:
             site = "unknown"
         values.append([r, g, b, host, site])
+    for i in range(64 - 7 - len(values)):
+        r, g, b = black
+        values.append([r, g, b, "", ""])
+    for color in (orange,red,palered,aqua,yellow,green,black):
+        r, g, b = color
+        values.append([r, g, b, "", ""])
     if len(sys.argv) > 1:
         values.sort(lambda a,b:cmp(a[4], b[4] ))
         print "Content-Type: application/json\n"
