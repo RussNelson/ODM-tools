@@ -341,13 +341,28 @@ def main():
             titles = [form["title"]]
         print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]').replace(",","") for title in titles])
         if fromdate: print "%sZ%s" % (fd, "," * len(seriesids))
+        pairs = []
         for i, series in enumerate(seriesids):
             cur.execute(vq, series.value)
             for row in cur.fetchall():
                 (dt, value) = row
+                dt += datetime.timedelta(seconds = 59) # round up to next minute (only needed for last measurement of the hour)
+                dt -= datetime.timedelta(minutes = dt.minute % 5, seconds = dt.second) # round down to current multiple of 5 minutes.
                 if not excel:
                     dt = (str(dt).replace(" ", "T") + "Z")
-                print "%s,%s%s" % (dt, "," * i, value)
+                pairs.append( (dt, value, i) )
+        pairs.sort()
+        thisdt = None
+        for dt, value, i in pairs:
+            if dt != thisdt:
+                if thisdt is not None:
+                    columns[i] = value
+                    columns = [ str(v) if v is not None else "" for v in columns ]
+                    print str(dt) + "," + ",".join(columns)
+                columns = [None] * len(seriesids)
+            else:
+                columns[i] = value
+            thisdt = dt
         if todate: print "%sZ%s" % (td, "," * len(seriesids))
 
     else:
