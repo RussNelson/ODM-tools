@@ -961,7 +961,7 @@ False
         """ set up our data """
         self._modelserial = modelserial
         self._fn = fn
-        if self.load() and self.dt + datetime.timedelta(hours = 1, minutes=1) >= dt:
+        if self.load() and self.dt < dt and self.dt + datetime.timedelta(hours = 1, minutes=1) >= dt:
             pass
         else:
             #if 'dt' in self.__dict__:
