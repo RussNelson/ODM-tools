@@ -1019,9 +1019,12 @@ class Datappal(Dataparser):
         if False:
             done = self.minuteperiod is not None and self.dt.minute / 15 != self.minuteperiod
             self.minuteperiod = self.dt.minute / 15
-        else:
+        elif False:
             done = self.minuteperiod is not None and self.dt.hour != self.minuteperiod
             self.minuteperiod = self.dt.hour
+        else:
+            done = self.minuteperiod is not None and self.dt.day != self.minuteperiod
+            self.minuteperiod = self.dt.day
         return done
 
     def normalize_fieldsums(self, fieldsums):
