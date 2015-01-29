@@ -340,7 +340,10 @@ def main():
             seriesids = [form["seriesid"]]
             titles = [form["title"]]
         print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]').replace(",","") for title in titles])
-        if fromdate: print "%sZ%s" % (fd, "," * len(seriesids))
+        if fromdate:
+            if excel:
+                fd = fd.replace("T","").replace("Z","")
+            print "%sZ%s" % (fd, "," * len(seriesids))
         pairs = []
         for i, series in enumerate(seriesids):
             cur.execute(vq, series.value)
@@ -363,7 +366,10 @@ def main():
             else:
                 columns[i] = value
             thisdt = dt
-        if todate: print "%sZ%s" % (td, "," * len(seriesids))
+        if todate:
+            if excel:
+                td = td.replace("T","").replace("Z","")
+            print "%sZ%s" % (td, "," * len(seriesids))
 
     else:
         print "Content-Type: text/html\n"
