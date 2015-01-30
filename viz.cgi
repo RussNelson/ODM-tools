@@ -342,8 +342,10 @@ def main():
         print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]').replace(",","") for title in titles])
         if fromdate:
             if excel:
-                fd = fd.replace("T","").replace("Z","")
-            print "%sZ%s" % (fd, "," * len(seriesids))
+                fd = fd.replace("T"," ")
+            else:
+                fd = fd + "Z"
+            print "%s%s" % (fd, "," * len(seriesids))
         pairs = []
         for i, series in enumerate(seriesids):
             cur.execute(vq, series.value)
@@ -368,8 +370,10 @@ def main():
             thisdt = dt
         if todate:
             if excel:
-                td = td.replace("T","").replace("Z","")
-            print "%sZ%s" % (td, "," * len(seriesids))
+                td = td.replace("T"," ")
+            else:
+                td = td + "Z"
+            print "%s%s" % (td, "," * len(seriesids))
 
     else:
         print "Content-Type: text/html\n"
