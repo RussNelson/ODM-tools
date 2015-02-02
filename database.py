@@ -366,6 +366,7 @@ class Dataparser:
         fnmain = os.path.splitext(os.path.basename(fn))
         fnfields = fnmain[0].split('-')
         self.YMD = fnfields[3][:8] # YYYYMMDD
+        self.YMDH = fnfields[3][:10] # YYYYMMDDHH
         self.dst = None
  
     dst2012end = datetime.datetime(2012, 11, 4, 1) # actually at 2AM, but it all goes into the 1AM file.
@@ -559,6 +560,7 @@ class Dataparser:
                 fn = fn.rstrip()
                 self.utc = fn.find("/r") >= 0
                 self.parse_fn(fn)
+                #writer.hour(self.YMDH, self.period)
 
                 self.prepare_for(fn)
              
@@ -640,7 +642,7 @@ class Datavoltage(Dataparser):
             self.YMDH += dashfields[4].split('.')[0]
 
     def parse_fn(self, fn):
-        # every line in a voltage file has the YMD.
+        # every line in a voltage file has the YMD, but set up YMDH.
         pass
 
     def normalize_fieldsums(self, fieldsums):
@@ -1035,9 +1037,9 @@ class Datappal(Dataparser):
         if fieldsums[0][0] == 0: return
         # only output deltas if the start of deltas exceeded threshold
         ave = float(fieldsums[0][1]) / fieldsums[0][0]
-        this = ave  / calibration[0]
+        this = ave  / calibration[0] # inches
         fieldsums[3][0] = 1;
-        fieldsums[3][1] = this; # convert inches to mm
+        fieldsums[3][1] = this;
         if self.h.previous is None: # remember the first (but we should be carrying over from previous)
             self.h.previous = this
             self.h.dt = self.dt
@@ -1064,6 +1066,17 @@ class Datappal1(Datappal):
 class Datappal2(Datappal):
     """ same data format """
 
+class Datappal3(Dataparser):
+    """ temperature, temperature, detailed, extensive """
+
+    def normalize_fieldsums(self, fieldsums):
+        cline = self.get_calibration(self.model, self.serial, self.dt)
+        calibration = map(float, cline[5:7])
+        for i in range(2):
+            ave = float(fieldsums[2+i][1]) / fieldsums[2+i][0]
+            fieldsums[2+i][0] = 1
+            fieldsums[2+i][1] = ave  / calibration[i]
+ 
 class Dataoptode(Dataparser):
     """19:54:07 342.18,95.81,9.42,28.68,29.52,0.00,266.87,168.00,0.00,341.65"""
 

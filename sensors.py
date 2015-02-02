@@ -104,7 +104,11 @@ ppal2:
     Precipitation,precip,121,Precipitation,
     Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
     Temperature,buckettemp,96,Precipitation,
+ppal3:
+    Temperature,buckettemp,96,Precipitation,
+    Temperature,boardtemperature,96,Other,ppal3 PCB temperature
     Water level,bucketdepthdeep,54,Precipitation,Rain gauge detailed depth  
+    Water level,bucketdepth,54,Precipitation,Rain gauge extensive depth
 ppaltest:
     ,,,,
     Temperature,buckettemp,96,Precipitation,
