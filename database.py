@@ -633,7 +633,7 @@ class Datavoltage(Dataparser):
         self.model = 'voltage'
         fnfields = fn.split('/')
         self.serial = fnfields[2] # actually the station name.
-        fn = os.path.join("/", fnfields[1], fnfields[2], ".grid")
+        fn = os.path.join(fnfields[0], fnfields[1], fnfields[2], ".grid")
         self.ignore = os.path.exists(fn)
         dashfields = fnfields[3].split('-')
         self.YMDH = "".join(dashfields[1:4])
@@ -647,7 +647,9 @@ class Datavoltage(Dataparser):
 
     def normalize_fieldsums(self, fieldsums):
         if self.ignore:
-            fieldsums[0][0] = 0
+            for f in fieldsums:
+                f[0] = 0
+            return
         if fieldsums[0][0]:
             if fieldsums[0][1] / fieldsums[0][0] < 3:
                 # map the value from an A/D value into a voltage
