@@ -18,6 +18,7 @@ except:
     pass
 import json
 import paramiko
+import seawater # http://www.imr.no/~bjorn/python/seawater/index.html
 
 class Datawriter: # base class
     """ provide methods for Dataparser to call to write data into a set of streams. """
@@ -862,7 +863,68 @@ class Datapdepth2(Datapdepth1):
 
 
 class Datacond(Dataparser):
-    """ we come in with three columns, but need to output only one conductivity in uS/cm. """
+    """ we come in with three columns, but need to output conductivity in uS/cm and salinity in PSU. """
+
+    def prepare_for(self, fn):
+        """ Given a cond filename, find an associated pdepth file and read it into a dict"""
+        pbar_fn = find_or_in_done(fn, r'COND-.*-', 'pdepth*-*-')
+        self.pbars = {}
+        self.last = None
+        if pbar_fn is None:
+            print "missing pdepth: %s" % fn
+            return
+        try:
+            lines = gzip.open(pbar_fn).readlines()
+        except IOError, err:
+            if err[0] != 'Not a gzipped file': raise
+            lines = open(pbar_fn).readlines()
+
+        # fill self.pbars with the pdepth[12] water temperature.
+        pcol = 4
+        if pbar_fn.find("pdepth2") >= 0: pcol = 5
+        for line in lines:
+            fields = line.split()
+            if len(fields) != 2: continue
+            pfields = fields[1].split(',')
+            if len(pfields) != pcol: continue
+            try:
+                t1 = float(pfields[3])
+            except ValueError:
+                continue
+            if pcol == 5: # possible for inside and outside to be swapped.
+                try:
+                    t2 = float(pfields[4])
+                except ValueError:
+                    continue
+                if t2 < t1: t1 = t2
+            self.pbars[fields[0]] = t1
+        print self.pbars
+        # get the first one, to make sure that we have one.
+        ks = self.pbars.keys()
+        ks.sort()
+        if len(ks):
+            self.last = self.pbars[ks[0]]
+
+    def set_dt_fields(self, fields):
+        """ get the datetime, but also remember HMS """
+        self.hms = fields[0]
+        return Dataparser.set_dt_fields(self, fields)
+
+    def add_to_fieldsums(self, fieldsums, fields):
+        """add the fields to the sums."""
+        # make room for the temperature sum.
+        if len(fieldsums) < 4:
+            fieldsums.append([0,0])
+        # our version went through fieldcol+1; this goes through all fields.
+        Dataparser.add_to_fieldsums(self, fieldsums, fields)
+
+        # pull pbar in. if there is not one to be had, don't output anything.
+        if self.last is None: return # we shouldn't, but we might.
+        if self.hms in self.pbars:
+            self.last = self.pbars[self.hms]
+        if self.last:
+            fieldsums[3][0] += 1
+            fieldsums[3][1] += self.last
 
     def normalize_fieldsums(self, fieldsums):
         # missing values become 0.
@@ -876,8 +938,9 @@ class Datacond(Dataparser):
                     fieldsums[i][0] = 0
                 return
         for i in range(3):
-            fieldsums[i][1] /= fieldsums[i][0]
-            fieldsums[i][0] = 0 # by default, discard them all.
+            if fieldsums[i][0]:
+                fieldsums[i][1] /= fieldsums[i][0]
+                fieldsums[i][0] = 0 # by default, discard them all.
         # look for the best value.
         for i in range(3):
             # look for a value in the middle range which has a calibration.
@@ -902,7 +965,10 @@ class Datacond(Dataparser):
         else:
             #print "found nothing in",fieldsums, 65535/4 , 65535 * 0.75
             pass
-        # if none chosen, then we don't output any value (outside of calibrated ranges).
+        # if we have data, then compute the salinity.
+        if fieldsums[0][0] and fieldsums[3][0]:
+            fieldsums[1][1] = seawater.salt(fieldsums[0][1] / 42914.0, fieldsums[3][1] / fieldsums[3][0], 0)
+            fieldsums[1][0] = 1
 
 class Datafl3(Dataparser):
     def normalize_fieldsums(self, fieldsums):

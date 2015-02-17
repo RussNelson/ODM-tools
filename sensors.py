@@ -156,7 +156,7 @@ MBIRDS:
     Gage height,mbdepth,47,Surface Water,Ultrasonic distance ranging
 COND:
     Electrical conductivity,lowcond,192,Surface Water,Low range sensor
-    Electrical conductivity,mediumcond,192,Surface Water,Medium range sensor
+    Salinity,sal,193,Surface Water,
     Electrical conductivity,highcond,192,Surface Water,High range sensor
 fl3:
     ,,,,
