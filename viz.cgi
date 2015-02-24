@@ -311,6 +311,7 @@ def main():
         series = [ "seriesid=%s&title=%s" % s for s in seriesids ]
         url = "?state=graphcsv&config=%s&siteid=%s&from=%s&to=%s&%s" % (configfn, siteid, fromdate, todate, "&".join(series))
         print """<hr>Everything in one <a href="%s">standard CSV</a> or <a href="%s">Excel CSV</a> file""" % (url, url+ "&excel=yes")
+        print """<script type="text/javascript">var sync = Dygraph.synchronize(graphlist, { zoom: true, range: false, selection: true });</script>"""
         print m['end']
 
     elif state == "graphcsv":

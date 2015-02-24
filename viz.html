@@ -44,6 +44,7 @@
   });
   </script>
   <script type="text/javascript" src="/dygraph-combined.js"></script>
+  <script type="text/javascript" src="/dygraphs/extras/synchronizer.js"></script>
 
   <link rel="stylesheet" href="jQuery-html5-canvas-panorama-plugin-master/ddpanorama.css" />
   <script type="text/javascript" src="jQuery-html5-canvas-panorama-plugin-master/jquery.ba-outside-events.min.js"> </script>
@@ -59,6 +60,7 @@
         <!--[if lt IE 9]><img alt="Acme Supplies" src="REONLogo.png" /><![endif]-->
     </a>
     <h1>Real-Time Hydrologic System</h1>
+<script>var graphlist = [];</script>
 <!--acmemapper-->
 Aerial photo on <a href="http://mapper.acme.com?ll=%s,%s&z=20&t=5">ACME Mapper</a>
 <!--dateform--><form submit="">
@@ -91,7 +93,7 @@ Aerial photo on <a href="http://mapper.acme.com?ll=%s,%s&z=20&t=5">ACME Mapper</
 <div class="prepend-3" id="rths%d" style="width:600px; background-color:#d0edf7"></div>
 You can also download this data in <a href="%s">standard CSV</a> format or <a href="%s">Excel CSV</a> with UTC times. All plots are in your browser's timezone.
 <script type="text/javascript">
-  g = new Dygraph(
+  graphlist.push(new Dygraph(
       document.getElementById("rths%d"),
       "%s",
       { 
@@ -100,7 +102,7 @@ You can also download this data in <a href="%s">standard CSV</a> format or <a hr
        title: '%s',
        ylabel: '%s',
       }
-  );
+  ));
 </script>
 <!--closechecks--></div>
 <!--closelist--></ul>
