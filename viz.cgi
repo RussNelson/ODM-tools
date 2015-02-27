@@ -131,6 +131,7 @@ def printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, locat
         options = 'drawPoints: true,\nstrokeWidth: 0,'
     else:
         options = ""
+    options += "title: '%s', ylabel: '%s'," % (title, ylabel)
 
     fromdatedt = parse_date(fromdate, False)
     todatedt = parse_date(todate, True)
@@ -145,7 +146,7 @@ def printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, locat
           fromdate, 
           todate,
           title)
-        print m['graph'] % (rthsno, url, url+"&excel=yes", rthsno, url, options, title, ylabel)
+        print m['graph'] % (rthsno, url, url+"&excel=yes", rthsno, url, options)
     return title
 
 def main():
