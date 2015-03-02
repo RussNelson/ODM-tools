@@ -111,6 +111,9 @@ def parse_date(d, epoch):
 def simpleiso(d):
     return d.isoformat().split("T")[0]
 
+def datetimeToGSON(dt):
+    return "'Date(" + ",".join([str(i) for i in dt.timetuple()[0:6]]) + ")'"
+
 def printgraph( cur, configfn, siteid, seriesid, rthsno, fromdate, todate, location=None):
     cur.execute(graphquery, seriesid)
     row = cur.fetchone()
@@ -310,6 +313,18 @@ def main():
         if rthsno == 0:
             print "But you didn't check any variables!"
         series = [ "seriesid=%s&title=%s" % s for s in seriesids ]
+        if rthsno == 2:
+            url = "?state=graphcsv&config=%s&siteid=%s&from=%s&to=%s&%s" % (configfn, siteid, fromdate, todate, "&".join(series))
+            options = 'connectSeparatedPoints:true,'
+            options += "title: '%s and %s'," % (seriesids[0][1], seriesids[1][1])
+            print m['graph'] % (rthsno, url, url+"&excel=yes", rthsno, url, options)
+            rthsno += 1
+            url += "&nodate=y"
+            options = 'connectSeparatedPoints:true,'
+            options += "title: '%s', ylabel: '%s'," % (seriesids[0][1], seriesids[1][1])
+            print m['graph'] % (rthsno, url, url+"&excel=yes", rthsno, url, options)
+            print "<script>graphlist.pop();</script>" # don't sync this one.
+            rthsno += 1
         url = "?state=graphcsv&config=%s&siteid=%s&from=%s&to=%s&%s" % (configfn, siteid, fromdate, todate, "&".join(series))
         print """<hr>Everything in one <a href="%s">standard CSV</a> or <a href="%s">Excel CSV</a> file""" % (url, url+ "&excel=yes")
         print """<script type="text/javascript">var sync = Dygraph.synchronize(graphlist, { zoom: true, range: false, selection: true });</script>"""
@@ -320,6 +335,7 @@ def main():
         fromdate = form["from"].value
         todate = form["to"].value
         excel = 'excel' in form
+        nodate = 'nodate' in form
         vq = valuesquery
         fd = date_chars_only(iso8601(fromdate))
         if fd.find(" ") < 0:
@@ -341,8 +357,10 @@ def main():
         else:
             seriesids = [form["seriesid"]]
             titles = [form["title"]]
-        print 'UTC Date,'+ ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]').replace(",","") for title in titles])
-        if fromdate:
+        if not nodate:
+            print 'UTC Date,',
+        print ",".join([ '"%s"' % title.value.translate(None, '"%&\\<>{}[]').replace(",","") for title in titles])
+        if fromdate and not nodate:
             if excel:
                 fd = fd.replace("T"," ")
             else:
@@ -364,13 +382,16 @@ def main():
             if dt != thisdt:
                 if thisdt is not None:
                     columns[i] = value
-                    columns = [ str(v) if v is not None else "" for v in columns ]
-                    print str(dt) + "," + ",".join(columns)
+                    if not nodate or None not in columns:
+                        columns = [ str(v) if v is not None else "" for v in columns ]
+                        if not nodate:
+                            print str(dt) + ",",
+                        print ",".join(columns)
                 columns = [None] * len(seriesids)
             else:
                 columns[i] = value
             thisdt = dt
-        if todate:
+        if todate and not nodate:
             if excel:
                 td = td.replace("T"," ")
             else:
