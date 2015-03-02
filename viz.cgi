@@ -397,6 +397,72 @@ def main():
             else:
                 td = td + "Z"
             print "%s%s" % (td, "," * len(seriesids))
+    elif state == "graphjson":
+        # note: this snippet returns JSON, not HTML
+        # https://google-developers.appspot.com/chart/interactive/docs/reference#dataparam
+        if 'tqx' in form:
+            tqx = dict([ kv.split(":") for kv in form["tqx"].value.split(";") ])
+        else:
+            tqx = {'reqId':0}
+        fromdate = form["from"].value
+        todate = form["to"].value
+        vq = valuesquery
+        fd = date_chars_only(iso8601(fromdate))
+        if fd.find(" ") < 0:
+            fd += "T00:00:00"
+        else:
+            fd = fd.replace(" ","T")
+        fddt = datetime.datetime(*time.strptime(fd, "%Y-%m-%dT%H:%M:%S")[:6])
+        td = date_chars_only(iso8601(todate))
+        if td.find(" ") < 0:
+            td += "T23:59:59"
+        else:
+            td = td.replace(" ","T")
+        tddt = datetime.datetime(*time.strptime(td, "%Y-%m-%dT%H:%M:%S")[:6])
+        if fromdate: vq += " and DateTimeUTC >= '%s'" % fd
+        if   todate: vq += " and DateTimeUTC <= '%s'" % td
+        vq += ';'
+        print "Content-Type: application/json\n"
+        if type(form["seriesid"]) == types.ListType:
+            seriesids = form["seriesid"]
+            titles = form["title"]
+        else:
+            seriesids = [form["seriesid"]]
+            titles = [form["title"]]
+        print "google.visualization.Query.setResponse({'reqId':'%s', 'status':'OK', 'table': {cols:[" % (tqx['reqId'])
+        print "{label:'UTC',type:'datetime'},"
+        for title in titles:
+            t = title.value.translate(None, '\'"%&\\<>{}[]').replace(",","")
+            print "{label:'%s',type:'number'}," % (t)
+        print "],rows:[ "
+        # do we need to output a full set of columns on each row?
+        if fromdate:
+            print "{c:[{v:%s}]}," % (datetimeToGSON(fddt))
+        pairs = []
+        for i, series in enumerate(seriesids):
+            cur.execute(vq, series.value)
+            for row in cur.fetchall():
+                (dt, value) = row
+                dt += datetime.timedelta(seconds = 59) # round up to next minute (only needed for last measurement of the hour)
+                dt -= datetime.timedelta(minutes = dt.minute % 5, seconds = dt.second) # round down to current multiple of 5 minutes.
+                pairs.append( (dt, value, i) )
+        pairs.sort()
+        thisdt = None
+        for dt, value, i in pairs:
+            if dt != thisdt:
+                if thisdt is not None:
+                    columns[i] = value
+                    columns = [ str(v) if v is not None else "" for v in columns ]
+
+                    print "{c:[{v:%s}," % datetimeToGSON(dt) + ",".join([ "{v:%s}" % c for c in columns]) + "]},"
+                columns = [None] * len(seriesids)
+            else:
+                columns[i] = value
+            thisdt = dt
+        if todate:
+            print "{c:[{v:%s}]}," % (datetimeToGSON(tddt))
+
+        print "]}});" # end the rows, end the table, end the object, close the function
 
     else:
         print "Content-Type: text/html\n"
